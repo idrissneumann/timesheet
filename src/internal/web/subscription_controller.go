@@ -18,11 +18,13 @@
 package web
 
 import (
+    "encoding/json"
     "errors"
     "io"
     "log/slog"
     "net/http"
     "slices"
+    "strconv"
     "strings"
 
     "timesheet/internal/account"
@@ -35,7 +37,10 @@ import (
 // ---------------------------------------------------------------------------
 
 type SubscriptionController struct {
+    loader     *WorkspaceLoader
     repository Repository
+    renderer   *Renderer
+    errors     *ErrorPages
     clock      activity.Clock
     random     io.Reader
     logger     *slog.Logger
@@ -79,26 +84,79 @@ type modelOption struct {
 }
 
 const (
-    choiceSeparator = "|"
-    unknownModel    = "Choisissez un fournisseur et un modèle de la liste, ou un autre modèle de 1 à 100 caractères imprimables sans espace."
-    invalidName     = "Le nom compte au plus 60 caractères, sur une ligne."
-    invalidKey      = "Indiquez la clef d'API : une ligne de 512 caractères au plus."
-    tooManyOwn      = "Vous avez atteint le nombre maximal de souscriptions."
-    unknownShare    = "Partage impossible : indiquez l'identifiant d'un autre compte existant, qui n'a pas déjà accès à cette souscription."
-    tooManyShares   = "Cette souscription est déjà partagée avec le nombre maximal de comptes."
-    staleProfile    = "Les données ont changé entre-temps (autre onglet ?). Rechargez la page avant de recommencer."
+    choiceSeparator     = "|"
+    subscriptionsPath   = "/dashboard/subscriptions"
+    minLoginQuery       = 2
+    maxLoginQuery       = 32
+    maxLoginSuggestions = 10
+    unknownModel        = "Choisissez un fournisseur et un modèle de la liste, ou un autre modèle de 1 à 100 caractères imprimables sans espace."
+    invalidName         = "Le nom compte au plus 60 caractères, sur une ligne."
+    invalidKey          = "Indiquez la clef d'API : une ligne de 512 caractères au plus."
+    tooManyOwn          = "Vous avez atteint le nombre maximal de souscriptions."
+    unknownShare        = "Partage impossible : indiquez l'identifiant d'un autre compte existant, qui n'a pas déjà accès à cette souscription."
+    tooManyShares       = "Cette souscription est déjà partagée avec le nombre maximal de comptes."
+    staleProfile        = "Les données ont changé entre-temps (autre onglet ?). Rechargez la page avant de recommencer."
 )
 
 // ---------------------------------------------------------------------------
 // SubscriptionController implementation
 // ---------------------------------------------------------------------------
 
-func NewSubscriptionController(repository Repository, clock activity.Clock, random io.Reader, logger *slog.Logger) *SubscriptionController {
-    return &SubscriptionController{repository: repository, clock: clock, random: random, logger: logger}
+func NewSubscriptionController(loader *WorkspaceLoader, repository Repository, renderer *Renderer, errors *ErrorPages, clock activity.Clock, random io.Reader, logger *slog.Logger) *SubscriptionController {
+    return &SubscriptionController{loader: loader, repository: repository, renderer: renderer, errors: errors, clock: clock, random: random, logger: logger}
 }
 
-func (c *SubscriptionController) Handles(action string) bool {
-    return strings.HasPrefix(action, "subscription-")
+func (c *SubscriptionController) Show(w http.ResponseWriter, r *http.Request) {
+    ws, found := c.loader.Own(r)
+    if !found {
+        c.errors.NotFound(w, r)
+        return
+    }
+    c.render(w, r, ws, http.StatusOK, "")
+}
+
+func (c *SubscriptionController) render(w http.ResponseWriter, r *http.Request, ws *Workspace, status int, alert string) {
+    c.renderer.Render(w, r, status, "subscriptions", PageModel{Section: "subscriptions", Alert: alert, Data: c.Record(ws)})
+}
+
+func (c *SubscriptionController) Submit(w http.ResponseWriter, r *http.Request) {
+    ws, found := c.loader.Own(r)
+    if !found {
+        c.errors.NotFound(w, r)
+        return
+    }
+    outcome := c.apply(r, ws)
+    switch {
+        case outcome.Alert != "":
+            c.render(w, r, ws, outcome.Status, outcome.Alert)
+        case outcome.Status == http.StatusBadRequest:
+            c.errors.BadRequest(w, r)
+        case outcome.Status == http.StatusNotFound:
+            c.errors.NotFound(w, r)
+        case outcome.Status != 0:
+            c.errors.Status(w, r, outcome.Status)
+        default:
+            c.renderer.Redirect(w, r, subscriptionsPath, outcome.Notice)
+    }
+}
+
+func (c *SubscriptionController) Logins(w http.ResponseWriter, r *http.Request) {
+    viewer := (&Viewer{}).From(r)
+    query := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
+    logins := []string{}
+    if (viewer != nil) && (len(query) >= minLoginQuery) && (len(query) <= maxLoginQuery) {
+        for _, item := range c.repository.Accounts() {
+            if (item.Login != viewer.Login) && item.State.Enabled() && strings.Contains(string(item.Login), query) && (len(logins) < maxLoginSuggestions) {
+                logins = append(logins, string(item.Login))
+            }
+        }
+    }
+    slices.Sort(logins)
+    data, _ := json.Marshal(logins)
+    w.Header().Set("Content-Type", "application/json; charset=utf-8")
+    w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+    w.WriteHeader(http.StatusOK)
+    w.Write(data)
 }
 
 func (c *SubscriptionController) Record(ws *Workspace) subscriptionsRecord {
@@ -148,7 +206,7 @@ func (c *SubscriptionController) groups(config activity.Configuration, selectedP
     return groups
 }
 
-func (c *SubscriptionController) Submit(r *http.Request, ws *Workspace) SubscriptionOutcome {
+func (c *SubscriptionController) apply(r *http.Request, ws *Workspace) SubscriptionOutcome {
     state, _ := c.repository.AssistantState(ws.Owner.Login)
     next := state.Clone()
     keys := map[string]string{}

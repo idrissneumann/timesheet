@@ -38,7 +38,7 @@ func TestRenderedPagesHaveASemanticSkeleton(t *testing.T) {
     admin := site.client().login("root")
     pages := map[*testClient][]string{
         guest: {"/", "/login", "/nope"},
-        user:  {"/dashboard/", "/dashboard/activity/2026/09", "/dashboard/month/2026/09", "/dashboard/month/2026/11", "/dashboard/year/2026", "/dashboard/settings", "/dashboard/data", "/dashboard/profile", "/dashboard/assistant", "/logout", "/admin/"},
+        user:  {"/dashboard/", "/dashboard/activity/2026/09", "/dashboard/month/2026/09", "/dashboard/month/2026/11", "/dashboard/year/2026", "/dashboard/settings", "/dashboard/data", "/dashboard/profile", "/dashboard/subscriptions", "/dashboard/assistant", "/logout", "/admin/"},
         admin: {"/admin/", "/admin/accounts", "/admin/accounts/demo", "/admin/settings", "/admin/accounts/demo/month/2026/10", "/admin/accounts/demo/year/2026"},
     }
     for client, paths := range pages {

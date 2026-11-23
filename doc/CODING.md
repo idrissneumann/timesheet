@@ -462,7 +462,7 @@ Both static style sheets are hand-written.
 19. calendar
 20. facts
 21. accounts
-22. assistant (subscriptions, exchanges, question, answer, pending action, question form)
+22. assistant (subscriptions, login suggestions, exchanges, question, answer, pending action, question form)
 
 The rules of a same subject follow each other, without any title comment: the selectors name what they style. A narrow-window rule of a subject placed after « responsive » stays in a media block at the end of that subject, since a later rule of the same specificity would override it.
 

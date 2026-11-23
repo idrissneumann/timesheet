@@ -122,7 +122,7 @@ Each row is a known limit that the application does not remove. The column "Boun
 | The database and the backups are not encrypted. | root, the service account or a holder of a backup reads the file. | Every comment and absence reason is readable in clear, and the conversations with the assistant too; only the API keys are sealed. | File modes, protected backups. See [Data protection](#data-protection). |
 | The operator can open the API keys. | Whoever reads both the database and the key file. | The key file only protects the keys of a database copied without it. | Back up the key file apart from the database, or not at all and give the keys again after a restore. |
 | The data read by the assistant leave the host. | A user asks a question. | The question, the context of the account and the data its tools read, comments of `ABS` days included, go to the provider of the subscription, under its own terms. The profile page says it. | Choose the provider; do not use the assistant for data that must stay on the host. |
-| A user can tell whether a login exists. | A user shares a subscription with a typed login. | An unknown login is refused with its own message, where the login form gives the same answer. | Accepted: the accounts of one installation are few and known to each other. |
+| A user can list the logins of the other accounts. | A user types two letters in the field that shares a subscription, or asks `/dashboard/subscriptions/logins` directly. | The suggestions give at most 10 logins of enabled accounts per request, logins only, no name nor profile; an unknown login is also refused with its own message, where the login form gives the same answer for every login. The login form still gives no hint, and the throttle still applies to passwords. | Accepted: the accounts of one installation are few and known to each other. |
 | A shared key spends the quota of its owner. | An account a subscription is shared with asks many questions. | One answer at a time per account, `assistant.max_rounds` rounds and `assistant.max_tokens` tokens per call; no quota per account. | Share only with trusted accounts; withdraw the share. |
 | A prompt injection in the data steers the model. | A comment or a reason holds instructions for the model. | The model may read them and propose a wrong write, or a misleading answer; it cannot write without the confirmation of the user, nor reach another account. | Read the summary of an action before confirming it. |
 | Login timing differs for some accounts. | A stored hash has a number of iterations other than `passwords.iterations`. | The decoy hash uses the configured number. | Change `passwords.iterations` rarely; a password change rewrites the hash with the configured number. |
@@ -606,6 +606,10 @@ Both options give:
 - Sessions survive the restart.
 
 ## AI ASSISTANT
+
+### Sharing
+
+- Only the owner of a subscription changes, shares or deletes it; the route of the suggestions answers a connected session only, with the logins of other enabled accounts that contain at least 2 typed characters, 10 at most.
 
 ### API keys
 

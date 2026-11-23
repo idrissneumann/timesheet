@@ -1253,3 +1253,29 @@ body > footer .brand {
     width: 100%;
     resize: vertical;
 }
+
+.login-suggestions {
+    display: grid;
+    gap: var(--space-1);
+    margin: 0;
+    padding: var(--space-1);
+    list-style: none;
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+.login-suggestions button {
+    width: 100%;
+    justify-content: flex-start;
+    background: var(--surface-raised);
+    border-color: var(--surface-raised);
+    color: var(--ink);
+}
+
+.login-suggestions button:hover, .login-suggestions button:focus-visible {
+    background: var(--accent-soft);
+    border-color: var(--accent-soft);
+    color: var(--ink);
+}

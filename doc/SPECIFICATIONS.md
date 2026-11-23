@@ -932,6 +932,7 @@ When the tracking started before the month, the number of tracked days is the nu
 | Month page | « \<Mois> \<année> » | `/dashboard/month/{year}/{month}` | connected | [Month page](#month-page) |
 | Year page | « Année \<année> » | `/dashboard/year/{year}` | connected | [Year page](#year-page) |
 | Profile page | « Mon profil » | `/dashboard/profile` | connected | [Profile page](#profile-page) |
+| Subscriptions page | « Mes souscriptions » | `/dashboard/subscriptions` | connected | [Subscriptions](#subscriptions) |
 | Settings page | « Réglages » | `/dashboard/settings` | connected | [Settings page](#settings-page) |
 | Data page | « Données » | `/dashboard/data` | connected | [Data page](#data-page) |
 | Assistant page | « Assistant » | `/dashboard/assistant` | connected | [AI assistant](#ai-assistant) |
@@ -966,7 +967,7 @@ When the tracking started before the month, the number of tracked days is the nu
 | Family | Pages | Entries | `aria-label` of the `<nav>` |
 | --- | --- | --- | --- |
 | public | home, login, logout, error pages for a guest | for a guest, a link to `/login` shown as an icon only, an arrow entering a door drawn in the text colour, with `title` and `aria-label` « Se connecter »; for a connected browser, a « Tableau de bord » button, preceded for an `ADMIN` by an « Administration » button; nothing on the login page | « Navigation principale » |
-| dashboard | dashboard, activity, month, year, profile, settings, data and assistant pages | for an `ADMIN`, « Administration », a link to `/admin/`; then « Tableau de bord », « Activité », « Mois », « Année »; then « Assistant », a link to `/dashboard/assistant`, only while the account can use a [subscription](#subscriptions) | « Navigation principale » |
+| dashboard | dashboard, activity, month, year, profile, subscriptions, settings, data and assistant pages | for an `ADMIN`, « Administration », a link to `/admin/`; then « Tableau de bord », « Activité », « Mois », « Année »; then « Assistant », a link to `/dashboard/assistant`, only while the account can use a [subscription](#subscriptions) | « Navigation principale » |
 | admin | server, accounts, account, configuration pages and read-only views | « Tableau de bord », a link to `/dashboard/`; then « Serveur », « Comptes », « Configuration » | « Navigation de l'administration » |
 
 - The current entry carries `aria-current="page"` and is highlighted.
@@ -1020,9 +1021,10 @@ The panel is a `<nav aria-label="Compte">`, the same on every page of the dashbo
 
 1. the profile as its heading (`<p class="menu-heading">`): « Administrateur » or « Utilisateur »;
 2. « Mon profil »;
-3. « Mes réglages », which opens the settings page « Réglages »;
-4. « Mes données », which opens the data page « Données »;
-5. the form « Se déconnecter ».
+3. « Mes souscriptions », which opens the page of the AI subscriptions;
+4. « Mes réglages », which opens the settings page « Réglages »;
+5. « Mes données », which opens the data page « Données »;
+6. the form « Se déconnecter ».
 
 - The entry of the current page carries `aria-current="page"`.
 - « Administration » is not in the user menu: it is an entry of the header ([Navigation of each family](#navigation-of-each-family)).
@@ -1436,24 +1438,11 @@ The section « Identité » lists:
 - The new password follows the policy of [SECURITY.md](SECURITY.md#passwords) and differs from the current one.
 - Success: every session of the account is closed, a new one opens for the current browser, and the page comes back (303) with the notice `password`.
 
-### Section « Assistant IA »
-
-- The last section, « Assistant IA », lists the subscriptions of the account and those shared with it, and holds the form « Ajouter une souscription » ([Subscriptions](#subscriptions)).
-- Its forms post to `/dashboard/profile` with an `action` starting with `subscription-`.
-
 ### Refusals of the profile page
 
 | Case | Status | Message |
 | --- | --- | --- |
 | unknown `action` | 400 | page « Requête invalide » |
-| subscription unknown, or not owned by the account for a change | 404 | page « Page introuvable » |
-| model unknown, or « Autre modèle » not 1 to 100 printable characters without space | 422 | « Choisissez un fournisseur et un modèle de la liste, ou un autre modèle de 1 à 100 caractères imprimables sans espace. » |
-| subscription name over 60 characters or on several lines | 422 | « Le nom compte au plus 60 caractères, sur une ligne. » |
-| API key missing at the creation, over 512 characters or with a control character | 422 | « Indiquez la clef d'API : une ligne de 512 caractères au plus. » |
-| 20 subscriptions already | 422 | « Vous avez atteint le nombre maximal de souscriptions. » |
-| share with an unknown login, one's own login or a login that already has access | 422 | « Partage impossible : indiquez l'identifiant d'un autre compte existant, qui n'a pas déjà accès à cette souscription. » |
-| 50 shares already | 422 | « Cette souscription est déjà partagée avec le nombre maximal de comptes. » |
-| the subscriptions changed in the meantime | 409 | « Les données ont changé entre-temps (autre onglet ?). Rechargez la page avant de recommencer. » |
 | invalid name | 422 | « Le nom compte au plus 60 caractères, sur une ligne. » |
 | too many failed checks from the same address, or on the same login | 429, with `Retry-After` | page « Trop de tentatives » |
 | wrong current password | 422 | « Le mot de passe actuel est incorrect. » |
@@ -1574,25 +1563,41 @@ The assistant answers the questions of a user about their own data, in French, w
 
 ### Subscriptions
 
-- A subscription is an API key of a provider with a model and a name, owned by one account. It is managed in the section « Assistant IA » of the [profile page](#profile-page).
+- A subscription is an API key of a provider with a model and a name, owned by one account. It is managed in the page « Mes souscriptions » (`/dashboard/subscriptions`, `h1` « Mes souscriptions »), the entry of the user menu just below « Mon profil »: the section « Souscriptions » lists those of the account, « Partagées avec moi » those shared with it, and « Ajouter une souscription » holds the form of a new one.
 - « Ajouter une souscription » asks for « Modèle », a list of the suggested models grouped by provider, « Autre modèle », which replaces the chosen model at the same provider, « Clef d'API » and « Nom ». Without a name, the subscription is named after the label of the provider and the model, cut at 60 characters.
 - The key is sealed with AES-256-GCM by the key of the [key file](#key-file) and never shown again, to anyone: the table lists the name, the provider, the model and the shares.
 - « Gérer » opens, for each subscription, the forms to change its name, model or key (an empty « Nouvelle clef d'API » keeps the key), to share it, to withdraw a share, to make it the default (« Utiliser par défaut ») and to delete it.
 - The first subscription of the list is the default one of a new conversation.
 - An account owns 20 subscriptions at most.
-- Success: 303 to `/dashboard/profile` with the notice `subscription`, `subscription-deleted`, `shared`, `unshared`, `subscription-hidden` or `subscription-shown`.
+- Its forms post to `/dashboard/subscriptions` with an `action` starting with `subscription-`.
+- Success: 303 to `/dashboard/subscriptions` with the notice `subscription`, `subscription-deleted`, `shared`, `unshared`, `subscription-hidden` or `subscription-shown`.
 
 ### Sharing
 
-- The owner shares a subscription by typing the login of another existing account, 50 accounts at most per subscription. An unknown login is refused, which tells the owner that it does not exist ([SECURITY.md](SECURITY.md#ai-assistant)).
+- The owner shares a subscription from « Gérer », field « Identifiant du compte », with another existing account, 50 accounts at most per subscription; « Retirer le partage avec \<login> » withdraws a share. An unknown login is refused.
+- With JavaScript, the field suggests the logins as they are typed, like a search: from 2 characters, 300 ms after the last key, the page asks `GET /dashboard/subscriptions/logins?q=<text>` and shows at most 10 logins of other enabled accounts that contain the text, in alphabetical order, as buttons that fill the field (arrows to move, Escape to close). The answer is a JSON array of logins only: no name, no profile. Without JavaScript, the login is typed whole. Every connected user can thus learn the logins of the other accounts ([SECURITY.md](SECURITY.md#ai-assistant)).
 - The account it is shared with sees it in the table « Souscriptions partagées avec moi », with its name, its owner, its provider and its model, never its key. It can use it in the assistant, and hide it (« Ne plus proposer ») or offer it again (« Proposer de nouveau »); it cannot change, share or delete it.
 - A subscription of a disabled owner cannot be used.
 - The conversations of a shared user stay on their own account: the owner never sees them.
 - Withdrawing a share, deleting the subscription or deleting the account of either side ends the use at once: the conversations that used it can be read, not continued.
 
+### Refusals of the subscriptions page
+
+| Case | Status | Message |
+| --- | --- | --- |
+| unknown `action` | 400 | page « Requête invalide » |
+| subscription unknown, or not owned by the account for a change | 404 | page « Page introuvable » |
+| model unknown, or « Autre modèle » not 1 to 100 printable characters without space | 422 | « Choisissez un fournisseur et un modèle de la liste, ou un autre modèle de 1 à 100 caractères imprimables sans espace. » |
+| subscription name over 60 characters or on several lines | 422 | « Le nom compte au plus 60 caractères, sur une ligne. » |
+| API key missing at the creation, over 512 characters or with a control character | 422 | « Indiquez la clef d'API : une ligne de 512 caractères au plus. » |
+| 20 subscriptions already | 422 | « Vous avez atteint le nombre maximal de souscriptions. » |
+| share with an unknown login, one's own login or a login that already has access | 422 | « Partage impossible : indiquez l'identifiant d'un autre compte existant, qui n'a pas déjà accès à cette souscription. » |
+| 50 shares already | 422 | « Cette souscription est déjà partagée avec le nombre maximal de comptes. » |
+| the subscriptions changed in the meantime | 409 | « Les données ont changé entre-temps (autre onglet ?). Rechargez la page avant de recommencer. » |
+
 ### Conversations
 
-- The page `/dashboard/assistant` (`h1` « Assistant ») offers the form « Nouvelle conversation » when the account can use a subscription, with the list « Souscription » when it can use several, and the table of the conversations, the most recent first, with the button « Supprimer toutes les conversations ». Without usable subscription, an alert points to the profile page.
+- The page `/dashboard/assistant` (`h1` « Assistant ») offers the form « Nouvelle conversation » when the account can use a subscription, with the list « Souscription » when it can use several, and the table of the conversations, the most recent first, with the button « Supprimer toutes les conversations ». Without usable subscription, an alert points to « Mes souscriptions ».
 - The page `/dashboard/assistant/{id}` (`h1` the title of the conversation) lists the exchanges: each question with its time, then the answer, the model that gave it, or the reason of its failure. The form « Poursuivre » asks the next question with the same subscription; « Supprimer cette conversation » deletes it.
 - The title of a conversation is its first question on one line, cut at a word before 60 characters with « … ».
 - An account keeps `assistant.conversations` conversations, 50 by default, of `assistant.exchanges` exchanges, 20 by default: beyond, the oldest conversation, or the oldest exchange of the conversation, is dropped. When the account record would exceed `limits.account_bytes`, the oldest conversations are dropped too.
@@ -1672,7 +1677,7 @@ A result is JSON of 64 000 bytes at most. The tools never reach the profile, the
 | download older than `assistant.download_ttl` | 410 | page « Lien expiré », « Ce fichier n'est plus disponible : demandez un nouvel export à l'assistant. » |
 | empty question | 422 | « Écrivez une question. » |
 | question too long or with a forbidden character | 422 | « La question est trop longue ou contient des caractères non autorisés. » |
-| no usable subscription | 409 | « Aucune souscription IA utilisable : ajoutez-en une dans « Mon profil ». » |
+| no usable subscription | 409 | « Aucune souscription IA utilisable : ajoutez-en une dans « Mes souscriptions ». » |
 | the subscription of the conversation is no longer usable | 409 | « La souscription de cette conversation n'est plus utilisable : elle a été supprimée, n'est plus partagée ou sa clef est illisible. » |
 | an answer is already being prepared | 409 | « Une réponse est déjà en cours de préparation : attendez-la avant de poser une autre question. » |
 | the conversations changed in the meantime | 409 | « Les données ont changé entre-temps (autre onglet ?). Rechargez la page avant de recommencer. » |
@@ -1684,7 +1689,7 @@ Failures of the provider, shown in place of the answer:
 
 | Case | Message |
 | --- | --- |
-| status 401 or 403 | « Le fournisseur a refusé la clef d'API (statut \<n>) : vérifiez la souscription dans « Mon profil ». » |
+| status 401 or 403 | « Le fournisseur a refusé la clef d'API (statut \<n>) : vérifiez la souscription dans « Mes souscriptions ». » |
 | status 429 | « Le quota ou le débit autorisé par le fournisseur est dépassé (statut 429) : réessayez plus tard. » |
 | other status | « Le fournisseur a refusé la requête (statut \<n>) : vérifiez le modèle de la souscription. » |
 | `assistant.timeout` reached | « Le fournisseur n'a pas répondu à temps. » |
@@ -1981,7 +1986,10 @@ The label of the code (grid) or its identifier (year calendar) is always written
 | `/dashboard/data/export` | GET | connected | downloads the data of the account in the import format ([Export](#export)) |
 | `/dashboard/data/import` | POST | connected | checks or imports a file in the import format ([Data page](#data-page)) |
 | `/dashboard/data/reset` | POST | connected | erases the whole tracking of the account ([Deletion of the data](#deletion-of-the-data)) |
-| `/dashboard/profile` | POST | connected | `action=name` saves the name; `action=sessions` closes every session of the account; `action=password` changes the password; `action=subscription-add`, `subscription-edit`, `subscription-delete`, `subscription-default`, `subscription-share`, `subscription-unshare`, `subscription-hide` or `subscription-show` manages the [subscriptions](#subscriptions); any other `action` gets 400 |
+| `/dashboard/profile` | POST | connected | `action=name` saves the name; `action=sessions` closes every session of the account; `action=password` changes the password; any other `action` gets 400 |
+| `/dashboard/subscriptions` | GET | connected | page « Mes souscriptions » ([Subscriptions](#subscriptions)) |
+| `/dashboard/subscriptions` | POST | connected | `action=subscription-add`, `subscription-edit`, `subscription-delete`, `subscription-default`, `subscription-share`, `subscription-unshare`, `subscription-hide` or `subscription-show`; any other `action` gets 400 |
+| `/dashboard/subscriptions/logins` | GET | connected | JSON array of at most 10 logins of other enabled accounts containing `q`, 2 to 32 characters; `[]` otherwise ([Sharing](#sharing)) |
 | `/dashboard/assistant` | GET | connected | [assistant page](#conversations): new conversation and list of the conversations |
 | `/dashboard/assistant` | POST | connected | `action=ask` asks a question, in the conversation `conversation` or in a new one; `action=confirm` or `cancel` applies or drops the pending action of `conversation`; `action=delete` deletes `conversation`; `action=delete-all` deletes every conversation; any other `action` gets 400 |
 | `/dashboard/assistant/{id}` | GET | connected | [conversation page](#conversations); 404 for a conversation of another account |
@@ -2033,7 +2041,7 @@ The refusals below come in the order in which the server checks them: a request 
 | 14 | 404 | invalid year or month, unknown login under `/admin/accounts/` | page « Page introuvable » |
 | 15 | 409 | form of an account whose field `created` is missing or differs from the account | the account page or the accounts page again, with « Ce compte a été supprimé puis recréé entre-temps. Rechargez la page avant de recommencer. » |
 | 16 | 400 | unknown `action`, unreadable revision | page « Requête invalide » |
-| 17 | 409, 413, 422 | refusals of a page | the page again, with an alert: [activity page](#refusals-of-the-activity-page), [settings page](#refusals-of-the-settings-page), [profile page](#refusals-of-the-profile-page), [data page](#refusals-of-the-data-page), [assistant pages](#refusals-of-the-assistant-pages), [accounts page](#refusals-of-the-accounts-page), [account page](#refusals-of-the-account-page), [configuration page](#refusals-of-the-configuration-page) |
+| 17 | 409, 413, 422 | refusals of a page | the page again, with an alert: [activity page](#refusals-of-the-activity-page), [settings page](#refusals-of-the-settings-page), [profile page](#refusals-of-the-profile-page), [subscriptions page](#refusals-of-the-subscriptions-page), [data page](#refusals-of-the-data-page), [assistant pages](#refusals-of-the-assistant-pages), [accounts page](#refusals-of-the-accounts-page), [account page](#refusals-of-the-account-page), [configuration page](#refusals-of-the-configuration-page) |
 | 18 | 500 | write error, the database file beyond `database.max_bytes` (64 MiB by default) included | page « Erreur interne » |
 
 Every error page offers « Revenir à l'accueil ». The answers of rows 2 to 18 carry the security headers ([SECURITY.md](SECURITY.md#pages)) and a line in the access log ([Logs](#logs)).
@@ -2147,13 +2155,18 @@ Every form posts `application/x-www-form-urlencoded` data, except the import of 
 | Password | `current` | « Mot de passe actuel », password, 256 characters | the current password |
 | Password | `password` | « Nouveau mot de passe », password, 12 to 256 characters | the new password |
 | Password | `confirm` | « Confirmation », password, 12 to 256 characters | the new password again |
+
+### Fields of the subscriptions page
+
+| Form | Field | Control | Content |
+| --- | --- | --- | --- |
 | Subscription | `action` | hidden | `subscription-add`, `subscription-edit`, `subscription-delete`, `subscription-default`, `subscription-share`, `subscription-unshare`, `subscription-hide` or `subscription-show` |
 | Subscription | `id` | hidden | the identifier of the subscription; `<owner>:<identifier>` for `subscription-hide` and `subscription-show` |
 | Subscription | `model` | « Modèle », list grouped by provider | `<provider>\|<model>` |
 | Subscription | `custom_model` | « Autre modèle », text, 100 characters | a model of the same provider, empty allowed |
 | Subscription | `key` | « Clef d'API » or « Nouvelle clef d'API », password, 512 characters | the key; empty keeps the key on a change |
 | Subscription | `name` | « Nom », text, 60 characters | the name, empty allowed |
-| Share | `login` | « Identifiant du compte », text, 32 characters | the login to share with or to withdraw |
+| Share | `login` | « Identifiant du compte », text, 32 characters, with the suggested logins below it when JavaScript runs | the login to share with or to withdraw |
 
 ### Fields of the assistant pages
 
@@ -3398,7 +3411,7 @@ These are choices of the application. Each one gives the way to reach the expect
 | Files downloaded from the data page « Données »: settings, days with their comments, adjustments with their reasons | the computer of the person | the person, and whoever reaches that computer | as long as they are kept | outside the application |
 
 - The database and the backups are not encrypted, except the API keys, sealed by the key file.
-- A question to the assistant sends personal data to the provider chosen by the user, comments of `ABS` days included when the tools read them: the profile page says it next to the form of a subscription.
+- A question to the assistant sends personal data to the provider chosen by the user, comments of `ABS` days included when the tools read them: the page « Mes souscriptions » says it next to the form of a subscription.
 - The reads of an `ADMIN` on another account appear in the access log, with the administrator and the page read.
 - The logs never hold the content of a day ([Never logged](#never-logged)). The commands of the command line log no event.
 - Deleting an account purges neither the backups nor the logs. Restoring a backup brings back the accounts deleted since, which must then be deleted again.

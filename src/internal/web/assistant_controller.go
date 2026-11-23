@@ -98,7 +98,7 @@ const (
     answerHeadingLevel = 4
     staleAssistant     = "Les données ont changé entre-temps (autre onglet ?). Rechargez la page avant de recommencer."
     busyAssistant      = "Une réponse est déjà en cours de préparation : attendez-la avant de poser une autre question."
-    noSubscription     = "Aucune souscription IA utilisable : ajoutez-en une dans « Mon profil »."
+    noSubscription     = "Aucune souscription IA utilisable : ajoutez-en une dans « Mes souscriptions »."
     staleAction        = "L'action ne correspond plus à l'état de vos données : elle n'a pas été appliquée. Annulez-la et demandez une nouvelle proposition."
     timestampLayout    = "02/01/2006 15:04"
 )
