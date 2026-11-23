@@ -58,6 +58,7 @@ type assistantRecord struct {
 }
 
 type conversationItem struct {
+    ID          string
     Path        string
     Title       string
     Updated     string
@@ -127,7 +128,7 @@ func (c *AssistantController) list(w http.ResponseWriter, r *http.Request, ws *W
     slices.SortFunc(conversations, c.recent)
     for _, conversation := range conversations {
         updated := conversation.Updated.In(ws.Location)
-        record.Conversations = append(record.Conversations, conversationItem{Path: assistantPath + "/" + conversation.ID, Title: conversation.Title, Updated: updated.Format(timestampLayout), UpdatedDate: updated.Format(time.RFC3339), Waiting: conversation.Waiting() && c.runner.Running(ws.Owner.Login)})
+        record.Conversations = append(record.Conversations, conversationItem{ID: conversation.ID, Path: assistantPath + "/" + conversation.ID, Title: conversation.Title, Updated: updated.Format(timestampLayout), UpdatedDate: updated.Format(time.RFC3339), Waiting: conversation.Waiting() && c.runner.Running(ws.Owner.Login)})
     }
     if (len(record.Choices) == 0) && (alert == "") {
         alert = noSubscription
