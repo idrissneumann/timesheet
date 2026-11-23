@@ -326,10 +326,26 @@ func (m *Markdown) link(text string) (Inline, int) {
     target := strings.TrimSpace(text[label + 2:label + 2 + end])
     width := label + 3 + end
     caption := m.plain(text[1:label], InlineText)
+    if m.download(target) {
+        return Inline{Kind: InlineLink, Text: caption, Href: target, Download: true}, width
+    }
     if !m.safe(target) {
         return Inline{Kind: InlineText, Text: caption}, width
     }
     return Inline{Kind: InlineLink, Text: caption, Href: target}, width
+}
+
+func (m *Markdown) download(target string) bool {
+    id, found := strings.CutPrefix(target, DownloadsPath)
+    if !found || (len(id) != downloadIDLength) {
+        return false
+    }
+    for _, letter := range []byte(id) {
+        if ((letter < '0') || (letter > '9')) && ((letter < 'a') || (letter > 'f')) {
+            return false
+        }
+    }
+    return true
 }
 
 func (m *Markdown) safe(target string) bool {

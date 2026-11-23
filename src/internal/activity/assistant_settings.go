@@ -32,6 +32,8 @@ type AssistantSettings struct {
     Conversations int64    `json:"conversations"`
     Exchanges     int64    `json:"exchanges"`
     QuestionBytes int64    `json:"question_bytes"`
+    DownloadTTL   Duration `json:"download_ttl"`
+    DownloadSweep Duration `json:"download_sweep"`
 }
 
 const (
@@ -44,6 +46,10 @@ const (
     MaxExchanges        = 100
     minQuestionBytes    = 100
     MaxQuestionBytes    = 16000
+    minDownloadTTL      = time.Minute
+    maxDownloadTTL      = 24 * time.Hour
+    minDownloadSweep    = 10 * time.Second
+    maxDownloadSweep    = time.Hour
 )
 
 // ---------------------------------------------------------------------------
@@ -51,7 +57,7 @@ const (
 // ---------------------------------------------------------------------------
 
 func NewDefaultAssistantSettings() AssistantSettings {
-    return AssistantSettings{Timeout: Duration(time.Minute), MaxRounds: 4, MaxTokens: 4096, Conversations: 50, Exchanges: 20, QuestionBytes: 4000}
+    return AssistantSettings{Timeout: Duration(time.Minute), MaxRounds: 4, MaxTokens: 4096, Conversations: 50, Exchanges: 20, QuestionBytes: 4000, DownloadTTL: Duration(30 * time.Minute), DownloadSweep: Duration(5 * time.Minute)}
 }
 
 func (s AssistantSettings) Validate() error {
@@ -71,7 +77,13 @@ func (s AssistantSettings) Validate() error {
     if err := check.Integer("exchanges", s.Exchanges, 1, MaxExchanges); err != nil {
         return err
     }
-    return check.Integer("question_bytes", s.QuestionBytes, minQuestionBytes, MaxQuestionBytes)
+    if err := check.Integer("question_bytes", s.QuestionBytes, minQuestionBytes, MaxQuestionBytes); err != nil {
+        return err
+    }
+    if err := check.Duration("download_ttl", s.DownloadTTL, minDownloadTTL, maxDownloadTTL); err != nil {
+        return err
+    }
+    return check.Duration("download_sweep", s.DownloadSweep, minDownloadSweep, maxDownloadSweep)
 }
 
 // ---------------------------------------------------------------------------

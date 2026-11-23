@@ -123,6 +123,8 @@ func (c *AdminServerController) groups() []serverGroupRecord {
             {"Conversations par compte", c.one(strconv.FormatInt(assistant.Conversations, 10))},
             {"Échanges par conversation", c.one(strconv.FormatInt(assistant.Exchanges, 10))},
             {"Taille d'une question", c.one(c.size(assistant.QuestionBytes))},
+            {"Durée d'un lien de téléchargement", c.one(assistant.DownloadTTL.Label())},
+            {"Nettoyage des téléchargements", c.one(assistant.DownloadSweep.Label())},
         }},
     }
 }

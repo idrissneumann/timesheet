@@ -39,6 +39,7 @@ The container image is a third form, described in its own section: [Container](#
 | Import template | `share/timesheet/import-template.json` | `/usr/share/timesheet/import-template.json` |
 | Sessions and lock | `timesheet-database.json.sessions` and `timesheet-database.json.lock`, next to the database | the same, in `/var/lib/timesheet/` |
 | Key file of the AI subscriptions | `timesheet-database.json.key`, next to the database, created at the first subscription | the same, in `/var/lib/timesheet/` |
+| Temporary downloads of the assistant | `timesheet-database.json.downloads/`, next to the database | the same, in `/var/lib/timesheet/` |
 | Server | `bin/timesheet.sh`, or `bin/timesheet run --database=var/lib/timesheet/timesheet-database.json --config=etc/timesheet/timesheet.json`, in the foreground | the unit `timesheet.service` |
 | Logs | the standard error of `run` | the journal: `journalctl -u timesheet` |
 | Commands that use the database | `bin/timesheet <command> --database=var/lib/timesheet/timesheet-database.json --config=etc/timesheet/timesheet.json` | `runuser -u timesheet -- timesheet <command> --config=/etc/timesheet/timesheet.json` |
@@ -168,6 +169,14 @@ The risks and the protections are in [Transport](SECURITY.md#transport), [Client
 - Open these flows, or set `HTTPS_PROXY` (and `NO_PROXY`) in the environment of the server: in a drop-in of the unit for the packages, with `-e` or `environment` for the container.
 - The section `assistant` of the server configuration bounds the calls: `assistant.timeout`, `assistant.max_rounds`, `assistant.max_tokens`, and the conversations kept, `assistant.conversations` and `assistant.exchanges` ([Section assistant](SPECIFICATIONS.md#section-assistant)).
 - A server without these flows works as before: a question then fails with « Le fournisseur est injoignable ou sa réponse est illisible. »
+
+### Temporary downloads of the assistant
+
+- When a user asks the assistant for their export, the file goes to the directory `<name>.downloads/`, next to the database (`/var/lib/timesheet/timesheet-database.json.downloads/` for the packages and the container). The server creates it with mode 0700.
+- A file lives 30 minutes, and a job removes the expired ones every 5 minutes: the keys `assistant.download_ttl` and `assistant.download_sweep` of the server configuration set them, and the environment variables `TIMESHEET_ASSISTANT_DOWNLOAD_TTL` and `TIMESHEET_ASSISTANT_DOWNLOAD_SWEEP` replace them at the start of `run`, for instance `TIMESHEET_ASSISTANT_DOWNLOAD_TTL=10m bin/timesheet.sh`.
+- For the packages, set them in a drop-in of the unit (`systemctl edit timesheet`, then `Environment=TIMESHEET_ASSISTANT_DOWNLOAD_TTL=10m`); for the container, with `-e`, or under `environment` of `docker-compose.yml`. An invalid value stops the server with `invalid environment variable` in the log.
+- The server page shows the values in effect.
+- The directory needs no backup, and can be deleted with the server stopped.
 
 ### Behind a reverse proxy on another machine
 
@@ -647,7 +656,7 @@ The errors of the commands are prefixed with `timesheet:`, and so are those of `
 | `config show: --config is required` or `config set: --config is required` (exit 2) | `config show` or `config set` is run without `--config`. | Give the file to print or change. |
 | `init: --template names the configuration template, a file` (exit 2) | `init` is run without `--template`. | Give `--template=share/timesheet/database-template.json` from the sources, `--template=/usr/share/timesheet/database-template.json` on a package. |
 | `the server configuration does not exist: <file>` | `--config` names a missing file. | Fix the path, or create the file with `config set database.path <file> --config=<file>`. |
-| `database.path: a file, not . or .., whose name does not end with .lock, .sessions, .key or .tmp in any case is expected` | `database.path` names a file that ends like a lock, session, key or temporary file, or a directory. | Set another name with `config set database.path <file>`, or `null`. |
+| `database.path: a file, not . or .., whose name does not end with .lock, .sessions, .key, .downloads or .tmp in any case is expected` | `database.path` names a file that ends like a lock, session, key, downloads or temporary file, or a directory. | Set another name with `config set database.path <file>`, or `null`. |
 | `open share/timesheet/database-template.json: no such file or directory` | `init` is run with a relative `--template` from another directory. | Go to the root, or give an absolute `--template`. |
 | `cannot lock …` with `the directory does not exist` | `run` is started with a wrong `--database` or `database.path`, or a relative path from another directory. | Run `bin/timesheet.sh`, or give `--database`. |
 | `the database does not exist, run init first`, `the directory does not exist: /var/lib/timesheet`, or a permission error, naming `/var/lib/timesheet` | A command of the sources is run without `--database`: the database of `etc/timesheet/timesheet.json` is the one of the package. | Give `--database=var/lib/timesheet/timesheet-database.json`. |

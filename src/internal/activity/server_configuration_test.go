@@ -73,6 +73,8 @@ func TestServerConfigurationValidationNamesTheField(t *testing.T) {
         "assistant.conversations":        func(c *ServerConfiguration) { c.Assistant.Conversations = 0 },
         "assistant.exchanges":            func(c *ServerConfiguration) { c.Assistant.Exchanges = 1000 },
         "assistant.question_bytes":       func(c *ServerConfiguration) { c.Assistant.QuestionBytes = 10 },
+        "assistant.download_ttl":         func(c *ServerConfiguration) { c.Assistant.DownloadTTL = Duration(30 * time.Second) },
+        "assistant.download_sweep":       func(c *ServerConfiguration) { c.Assistant.DownloadSweep = Duration(2 * time.Hour) },
     }
     for path, mutate := range cases {
         configuration := testServerConfiguration().Clone()
@@ -91,7 +93,7 @@ func TestServerConfigurationValidationNamesTheField(t *testing.T) {
 
 func TestServerConfigurationKeysReadAndWriteTheirValue(t *testing.T) {
     configuration := testServerConfiguration().Clone()
-    if keys := configuration.Keys(); (len(keys) != 40) || (keys[0] != "server.listen") || (keys[len(keys) - 1] != "assistant.question_bytes") {
+    if keys := configuration.Keys(); (len(keys) != 42) || (keys[0] != "server.listen") || (keys[len(keys) - 1] != "assistant.download_sweep") {
         t.Fatalf("got %v", keys)
     }
     values := map[string]string{"server.origins": "http://a.test:8080, http://b.test:8080", "server.tls_cert": "cert.pem", "sessions.idle_timeout": "1h30m", "limits.accounts": "300"}

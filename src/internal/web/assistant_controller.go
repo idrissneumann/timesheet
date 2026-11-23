@@ -23,6 +23,7 @@ import (
     "log/slog"
     "net/http"
     "slices"
+    "strconv"
     "strings"
     "time"
 
@@ -46,6 +47,7 @@ type AssistantController struct {
     random     io.Reader
     logger     *slog.Logger
     markdown   *assistant.Markdown
+    downloads  Downloads
 }
 
 type assistantRecord struct {
@@ -105,8 +107,8 @@ const (
 // AssistantController implementation
 // ---------------------------------------------------------------------------
 
-func NewAssistantController(loader *WorkspaceLoader, repository Repository, renderer *Renderer, errors *ErrorPages, runner *AssistantRunner, planner *ActionPlanner, settings activity.AssistantSettings, clock activity.Clock, random io.Reader, logger *slog.Logger) *AssistantController {
-    return &AssistantController{loader: loader, repository: repository, renderer: renderer, errors: errors, runner: runner, planner: planner, settings: settings, clock: clock, random: random, logger: logger, markdown: assistant.NewMarkdown(answerHeadingLevel)}
+func NewAssistantController(loader *WorkspaceLoader, repository Repository, renderer *Renderer, errors *ErrorPages, runner *AssistantRunner, planner *ActionPlanner, settings activity.AssistantSettings, clock activity.Clock, random io.Reader, logger *slog.Logger, downloads Downloads) *AssistantController {
+    return &AssistantController{loader: loader, repository: repository, renderer: renderer, errors: errors, runner: runner, planner: planner, settings: settings, clock: clock, random: random, logger: logger, markdown: assistant.NewMarkdown(answerHeadingLevel), downloads: downloads}
 }
 
 func (c *AssistantController) Show(w http.ResponseWriter, r *http.Request) {
@@ -171,6 +173,34 @@ func (c *AssistantController) conversation(w http.ResponseWriter, r *http.Reques
         record.Pending = &pendingRecord{Summary: pending.Summary, Proposed: pending.Proposed.In(ws.Location).Format(timestampLayout)}
     }
     c.renderer.Render(w, r, status, "assistant_conversation", PageModel{Section: "assistant", Alert: alert, Refresh: record.Running, Data: record})
+}
+
+func (c *AssistantController) Download(w http.ResponseWriter, r *http.Request) {
+    ws, found := c.loader.Own(r)
+    if !found {
+        c.errors.NotFound(w, r)
+        return
+    }
+    download, err := c.downloads.Open(ws.Owner.Login, r.PathValue("id"), c.clock.Now(), c.settings.DownloadTTL.Std())
+    switch {
+        case errors.Is(err, assistant.ErrDownloadExpired):
+            c.errors.Status(w, r, http.StatusGone)
+            return
+        case errors.Is(err, assistant.ErrDownloadMissing):
+            c.errors.NotFound(w, r)
+            return
+        case err != nil:
+            c.logger.Error("cannot read the download", "error", err.Error())
+            c.errors.Status(w, r, http.StatusInternalServerError)
+            return
+    }
+    w.Header().Set("Content-Type", "application/json; charset=utf-8")
+    w.Header().Set("Content-Disposition", `attachment; filename="` + ws.ExportName(activity.NewDateOf(download.Created.In(ws.Location))) + `"`)
+    w.Header().Set("Cache-Control", "no-store")
+    w.Header().Set("Content-Length", strconv.Itoa(len(download.Data)))
+    w.WriteHeader(http.StatusOK)
+    w.Write(download.Data)
+    c.logger.Info("assistant download", "login", string(ws.Owner.Login))
 }
 
 func (c *AssistantController) Submit(w http.ResponseWriter, r *http.Request) {

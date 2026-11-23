@@ -43,6 +43,7 @@ type SiteDependencies struct {
     Iterations     int
     Version        string
     Client         *http.Client
+    Downloads      Downloads
 }
 
 // ---------------------------------------------------------------------------

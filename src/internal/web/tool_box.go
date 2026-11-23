@@ -39,6 +39,7 @@ type ToolBox struct {
     statements *StatementView
     now        time.Time
     pending    *assistant.PendingAction
+    export     *ToolExport
 }
 
 type toolArguments struct {
@@ -94,11 +95,28 @@ func NewToolBox(ws *Workspace, planner *ActionPlanner, now time.Time) *ToolBox {
     return &ToolBox{ws: ws, planner: planner, positions: NewPositionView(), statements: NewStatementView(), now: now}
 }
 
+func (b *ToolBox) WithExport(export *ToolExport) *ToolBox {
+    b.export = export
+    return b
+}
+
 func (b *ToolBox) Pending() *assistant.PendingAction {
     return b.pending
 }
 
 func (b *ToolBox) Tools() []assistant.Tool {
+    tools := b.tools()
+    if b.export != nil {
+        tools = append(tools, NewAssistantTool(ToolExportData, "Prépare le fichier d'export des données de l'utilisateur (réglages, jours avec leurs commentaires, ajustements, au format d'import de « Mes données ») et donne un lien de téléchargement temporaire, réservé à l'utilisateur.", noParameters, b.exportData))
+    }
+    return tools
+}
+
+func (b *ToolBox) exportData(raw json.RawMessage) string {
+    return b.encode(b.export.Run(b.ws, b.now))
+}
+
+func (b *ToolBox) tools() []assistant.Tool {
     return []assistant.Tool{
         NewAssistantTool("read_balances", "Soldes de tous les compteurs de l'utilisateur : aujourd'hui, au dernier mois validé et en prévision.", noParameters, b.readBalances),
         NewAssistantTool("read_month", "Demi-journées, commentaires, ajustements, anomalies, indicateurs et état (ouvert ou validé) d'un mois.", monthParameters, b.readMonth),

@@ -119,7 +119,7 @@
 {{end}}
 {{- end}}
 {{- end}}
-{{define "inlines"}}{{range .}}{{if eq .Kind "strong"}}<strong>{{.Text}}</strong>{{else if eq .Kind "em"}}<em>{{.Text}}</em>{{else if eq .Kind "code"}}<code>{{.Text}}</code>{{else if eq .Kind "link"}}<a href="{{.Href}}" rel="noopener noreferrer">{{.Text}}</a>{{else}}{{.Text}}{{end}}{{end}}{{end}}
+{{define "inlines"}}{{range .}}{{if eq .Kind "strong"}}<strong>{{.Text}}</strong>{{else if eq .Kind "em"}}<em>{{.Text}}</em>{{else if eq .Kind "code"}}<code>{{.Text}}</code>{{else if eq .Kind "link"}}{{if .Download}}<a href="{{.Href}}" download>{{.Text}}</a>{{else}}<a href="{{.Href}}" rel="noopener noreferrer">{{.Text}}</a>{{end}}{{else}}{{.Text}}{{end}}{{end}}{{end}}
 {{define "scripts"}}
         <script type="module" src="/static/js/assistant_page.js"></script>
 {{- end}}

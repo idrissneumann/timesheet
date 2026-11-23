@@ -58,6 +58,8 @@
     "max_tokens": 4096,
     "conversations": 50,
     "exchanges": 20,
-    "question_bytes": 4000
+    "question_bytes": 4000,
+    "download_ttl": "30m",
+    "download_sweep": "5m"
   }
 }

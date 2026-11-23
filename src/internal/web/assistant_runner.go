@@ -46,6 +46,7 @@ type AssistantRunner struct {
     client     *http.Client
     settings   activity.AssistantSettings
     planner    *ActionPlanner
+    downloads  Downloads
     skill      *assistant.Skill
     clock      activity.Clock
     logger     *slog.Logger
@@ -64,9 +65,9 @@ const (
 // AssistantRunner implementation
 // ---------------------------------------------------------------------------
 
-func NewAssistantRunner(repository Repository, loader *WorkspaceLoader, client *http.Client, settings activity.AssistantSettings, planner *ActionPlanner, clock activity.Clock, logger *slog.Logger) *AssistantRunner {
+func NewAssistantRunner(repository Repository, loader *WorkspaceLoader, client *http.Client, settings activity.AssistantSettings, planner *ActionPlanner, downloads Downloads, clock activity.Clock, logger *slog.Logger) *AssistantRunner {
     ctx, cancel := context.WithCancel(context.Background())
-    return &AssistantRunner{busy: map[account.Login]bool{}, ctx: ctx, cancel: cancel, repository: repository, loader: loader, client: client, settings: settings, planner: planner, skill: assistant.NewSkill(), clock: clock, logger: logger}
+    return &AssistantRunner{busy: map[account.Login]bool{}, ctx: ctx, cancel: cancel, repository: repository, loader: loader, client: client, settings: settings, planner: planner, downloads: downloads, skill: assistant.NewSkill(), clock: clock, logger: logger}
 }
 
 func (r *AssistantRunner) Begin(login account.Login) bool {
@@ -124,7 +125,7 @@ func (r *AssistantRunner) run(login account.Login, id string) {
     if !found {
         return
     }
-    box := NewToolBox(ws, r.planner, r.clock.Now().UTC())
+    box := NewToolBox(ws, r.planner, r.clock.Now().UTC()).WithExport(NewToolExport(r.downloads, r.settings.DownloadTTL.Std(), r.logger))
     endpoint := assistant.Endpoint{Format: provider.Format, BaseURL: provider.BaseURL, Model: subscription.Model, Key: key}
     agent := assistant.NewAgent(endpoint.Provider(r.client), box.Tools(), r.settings.MaxRounds, r.settings.MaxTokens)
     reply, err := agent.Answer(r.ctx, r.system(ws), r.history(conversation))

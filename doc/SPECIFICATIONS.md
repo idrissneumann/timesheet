@@ -1631,6 +1631,7 @@ Every tool works on the account of the question, whatever its arguments; it read
 | `propose_reopening` | `month`, `reason` | a proposal to [reopen](#reopening) the last validated month |
 | `propose_adjustment` | `date`, `counter`, `amount`, `reason` | a proposal of an [adjustment](#adjustments) |
 | `propose_adjustment_removal` | `id` | a proposal to delete an adjustment of an open month |
+| `export_data` | none | the [export](#export) of the account saved as a [temporary download](#temporary-downloads): its link, its file name and the time it expires |
 
 A result is JSON of 64 000 bytes at most. The tools never reach the profile, the password, the settings, the subscriptions or the administration.
 
@@ -1643,12 +1644,23 @@ A result is JSON of 64 000 bytes at most. The tools never reach the profile, the
 - « Annuler » (`action=cancel`) drops it; the conversation records the cancellation; notice `cancelled`.
 - A validated month is never rewritten: a proposal on it is refused, and a confirmation after the data changed is refused (409).
 
+### Temporary downloads
+
+- `export_data` encodes the export of the account, the file of « Mes données » in the import format ([Export](#export)), and keeps it in the [directory of the downloads](#directory-of-the-downloads) under a random identifier of 32 hexadecimal characters.
+- Its link is `/dashboard/assistant/downloads/{id}`; the model gives it in its answer, where it is the only relative link kept.
+- The link works only for the connected account that asked for it: for any other account, as for an unknown identifier, it gives 404.
+- It answers the file as an attachment named `timesheet-<login>-<date>.json`, the date of its creation, with `Cache-Control: no-store`.
+- A file lives `assistant.download_ttl`, 30 minutes by default: after it, the link gives 410, page « Lien expiré », and the file is removed.
+- Every `assistant.download_sweep`, 5 minutes by default, and at the start of the server, a job removes the expired files and the temporary files left by an interrupted write.
+- An account keeps 20 files at most: a new one removes the oldest.
+- « Supprimer mes données » and the deletion of the account remove its files at once.
+
 ### Rendering of the answers
 
 - The answer is parsed on the server into paragraphs, headings, lists, tables, code blocks, quotes and rules, with bold, italic, code and links inline; everything is escaped by the templates, and raw HTML is shown as text.
 - The headings start at `h4` under the `h3` of the exchange and never skip a level.
 - A table gets the caption « Tableau \<n> » and headers `th scope="col"`.
-- Only `http` and `https` links with a host are kept, with `rel="noopener noreferrer"`; another link is shown as its text.
+- Only `http` and `https` links with a host are kept, with `rel="noopener noreferrer"`, and the links `/dashboard/assistant/downloads/<32 hexadecimal characters>` of the temporary downloads, with the attribute `download`; another link is shown as its text.
 
 ### Refusals of the assistant pages
 
@@ -1656,6 +1668,8 @@ A result is JSON of 64 000 bytes at most. The tools never reach the profile, the
 | --- | --- | --- |
 | unknown `action` | 400 | page « Requête invalide » |
 | unknown conversation, or no pending action to confirm or cancel | 404 | page « Page introuvable » |
+| download unknown, malformed or of another account | 404 | page « Page introuvable » |
+| download older than `assistant.download_ttl` | 410 | page « Lien expiré », « Ce fichier n'est plus disponible : demandez un nouvel export à l'assistant. » |
 | empty question | 422 | « Écrivez une question. » |
 | question too long or with a forbidden character | 422 | « La question est trop longue ou contient des caractères non autorisés. » |
 | no usable subscription | 409 | « Aucune souscription IA utilisable : ajoutez-en une dans « Mon profil ». » |
@@ -1708,7 +1722,7 @@ No other page shows the version.
 | « Connexion » | « Validité du formulaire », « Premier délai », « Délai maximal », « Fenêtre du budget », « Nouvelles adresses par fenêtre », « Adresses suivies », « Oubli d'une adresse » |
 | « Mots de passe » | « Itérations PBKDF2 » |
 | « Limites » | « Comptes », « Taille d'un compte », « Ajustements par compte » |
-| « Assistant » | « Délai d'un appel au fournisseur », « Tours d'outils par question », « Jetons par réponse », « Conversations par compte », « Échanges par conversation », « Taille d'une question » |
+| « Assistant » | « Délai d'un appel au fournisseur », « Tours d'outils par question », « Jetons par réponse », « Conversations par compte », « Échanges par conversation », « Taille d'une question », « Durée d'un lien de téléchargement », « Nettoyage des téléchargements »; the values in effect, after the [environment variables](#environment-variables) |
 
 - A duration is shown with its French unit: `8 h`, `1 min`, `30 s`, `500 ms`, in the shortest form of the file. A size is shown in `Mio` or `Kio` when it is a whole number of them, otherwise in `octets`; the length of the address is always in `octets`.
 - A list (« Origines publiques », « Proxys de confiance ») shows one entry per line, each in its own `dd` under the same `dt`.
@@ -1971,6 +1985,7 @@ The label of the code (grid) or its identifier (year calendar) is always written
 | `/dashboard/assistant` | GET | connected | [assistant page](#conversations): new conversation and list of the conversations |
 | `/dashboard/assistant` | POST | connected | `action=ask` asks a question, in the conversation `conversation` or in a new one; `action=confirm` or `cancel` applies or drops the pending action of `conversation`; `action=delete` deletes `conversation`; `action=delete-all` deletes every conversation; any other `action` gets 400 |
 | `/dashboard/assistant/{id}` | GET | connected | [conversation page](#conversations); 404 for a conversation of another account |
+| `/dashboard/assistant/downloads/{id}` | GET | connected | a [temporary download](#temporary-downloads) of the account; 404 for an unknown one or one of another account, 410 once expired |
 | `/dashboard/settings` | GET | connected | [settings page](#settings-page) |
 | `/dashboard/settings` | POST | connected | saves the user settings |
 | `/dashboard/colors.css` | GET | connected | [colour sheet](#colour-sheet) of the viewer |
@@ -2746,6 +2761,13 @@ The whole file is validated when it is loaded. An invalid database stops the pro
 - Without it, or with another one, the keys cannot be opened: the subscriptions must be given their key again. Back it up with the database, and keep the two copies apart when a stolen backup of the database alone must not reveal the keys.
 - A database name cannot end with `.key`.
 
+### Directory of the downloads
+
+- The directory `<file name>.downloads`, next to the database, holds the [temporary downloads](#temporary-downloads) of the assistant, one file `<id>-<login>.json` each, mode 0600, written atomically.
+- It is created with mode 0700 at the first download; a directory that gives a right to the group or others is refused, and the download fails.
+- Its files never need a backup: they expire after `assistant.download_ttl`. It can be deleted, the server stopped.
+- A database name cannot end with `.downloads`.
+
 ### Lock
 
 - An exclusive lock `<file name>.lock`, next to the database, allows one writer at a time: `timesheet-database.json.lock` for `timesheet-database.json`.
@@ -2836,7 +2858,9 @@ The settings of the server live in their own file, apart from the database. Its 
     "max_tokens": 4096,
     "conversations": 50,
     "exchanges": 20,
-    "question_bytes": 4000
+    "question_bytes": 4000,
+    "download_ttl": "30m",
+    "download_sweep": "5m"
   }
 }
 ```
@@ -2941,6 +2965,8 @@ These limits apply only to a write that grows the database: a lowered limit neve
 | `conversations` | 1 to 200 | the conversations kept per account, the oldest dropped | `50` |
 | `exchanges` | 1 to 100 | the exchanges kept per conversation, and sent to the model as history | `20` |
 | `question_bytes` | 100 to 16 000 | the size of one question | `4000` |
+| `download_ttl` | duration, 1m to 24h | the life of a [temporary download](#temporary-downloads); `TIMESHEET_ASSISTANT_DOWNLOAD_TTL` replaces it | `30m` |
+| `download_sweep` | duration, 10s to 1h | the period of the job that removes the expired downloads; `TIMESHEET_ASSISTANT_DOWNLOAD_SWEEP` replaces it | `5m` |
 
 A lowered `conversations` or `exchanges` applies at the next question of a conversation; the conversations already kept stay readable.
 
@@ -2964,6 +2990,20 @@ A lowered `conversations` or `exchanges` applies at the next question of a conve
 - `--log-level` replaces `server.log_level` for `run`.
 - Without option, the file applies; without file, the defaults, the database coming from `--database`.
 - A change applies at the next start of the server, or at the next command.
+
+### Environment variables
+
+`run` reads two environment variables after the file, which replace its keys:
+
+| Variable | Replaces | Default of the key |
+| --- | --- | --- |
+| `TIMESHEET_ASSISTANT_DOWNLOAD_TTL` | `assistant.download_ttl` | `30m` |
+| `TIMESHEET_ASSISTANT_DOWNLOAD_SWEEP` | `assistant.download_sweep` | `5m` |
+
+- A variable that is absent or empty leaves the key of the file, or its default.
+- A value is read like the key and checked with its bounds: a malformed or out-of-bounds value stops `run` (exit 1) with `invalid environment variable` and the path of the key, for instance `assistant.download_ttl: a duration such as 500ms, 30s, 5m or 8h is expected`.
+- The server page shows the values in effect; `config show` shows the file, without the variables.
+- The other commands do not read them.
 
 ### Editing
 
@@ -3083,7 +3123,7 @@ The paths lost their defaults, and the files written next to the database lost t
 | `database.path` defaulted to `/var/lib/timesheet/timesheet-database.json` | `database.path` has no default: the database comes from `--database` or from `database.path`, and a command that opens it without either is refused |
 | a missing server configuration gave the defaults | a file given by `--config` and missing is an error, except for `config set`, which creates it without database |
 | `.<name>.lock`, `.<name>.sessions`, `.<name>.<digits>.tmp` | `<name>.lock`, `<name>.sessions`, `<name>.<digits>.tmp`, and since the assistant `<name>.key` |
-| a database name could not start with a dot | a database name cannot end with `.lock`, `.sessions`, `.key` or `.tmp` |
+| a database name could not start with a dot | a database name cannot end with `.lock`, `.sessions`, `.key`, `.downloads` or `.tmp` |
 
 - A script or a unit that opens the database without `--database`, with a configuration that names none or without `--config`, fails with `timesheet: <command>: no database: give --database or set database.path in --config` (exit 2): add `--database`, or `database.path` with `config set database.path <file>`. The unit of the packages gives `--config`, and the file shipped in the repository and in the packages names the database.
 - The former session file `.<name>.sessions` is no longer read: its users log in again. Stop the server, then delete it, with the former lock `.<name>.lock`; the session file holds the CSRF tokens of its sessions.
@@ -3103,7 +3143,8 @@ The assistant added `ai_providers` to the configuration and to the configuration
 
 - Nothing to do: a database without `ai_providers` offers the four providers of the template, and an account without `assistant` has no subscription. At the next write, the configuration gets `"ai_providers": null` and each account `"assistant": null`. A server configuration without the section `assistant` takes its defaults.
 - An older binary refuses a database written since, with `json: unknown field "ai_providers"` or `"assistant"`, and a server configuration with the section `assistant`, with `json: unknown field "assistant"`: restore the backup taken before the upgrade, or delete the keys by hand.
-- A database that already ends with `.key` must be renamed.
+- A database that already ends with `.key` or `.downloads` must be renamed.
+- The keys `assistant.download_ttl` and `assistant.download_sweep` and the directory `<name>.downloads` came with the temporary downloads: a server configuration without them takes their defaults.
 - The assistant calls the providers over https: open the outbound flows to their addresses, or set `HTTPS_PROXY`.
 
 ### Rule for future changes
@@ -3191,6 +3232,11 @@ time=2026-11-13T16:40:12.345+01:00 level=INFO msg=request client=203.0.113.9 pee
 | `assistant answered` | INFO | `login`, `provider`, `model`, `input_tokens`, `output_tokens`, `proposal` | an answer of the assistant; `proposal` tells whether it proposed an action |
 | `assistant failed` | WARN | `login`, `provider`, `model`, `error` | a failure of the provider; `error` names the status or the network error, never the key nor the body of the answer |
 | `conversation deleted`, `conversations deleted` | INFO | `login` | one or every conversation deleted |
+| `data exported` | INFO | `login`, `by=assistant` | an export prepared by the tool `export_data` |
+| `assistant download` | INFO | `login` | a temporary download read |
+| `downloads removed` | INFO | `count` | the job removed expired downloads |
+| `invalid environment variable` | ERROR | `error` | `run` cannot start: a variable of [Environment variables](#environment-variables) is invalid; it exits with 1 |
+| `cannot save the download`, `cannot read the download` | ERROR | `error` | a temporary download could not be written or read |
 | `cannot save the name`, `cannot save the calendar`, `cannot save the settings`, `cannot save the configuration`, `cannot export the data`, `cannot import the data`, `cannot save the subscriptions`, `cannot save the conversations`, `cannot save the answer` | ERROR | `error` | a write failed (500), or the answer of the assistant could not be kept |
 | `handler panic` | ERROR | `path`, `panic` | a page failed unexpectedly (500) |
 | `template rendering failed` | ERROR | `error` | a page could not be rendered |
@@ -3276,6 +3322,7 @@ The column « Setting » names the key of the [server configuration](#server-con
 | Question | 4000 bytes | `assistant.question_bytes` | 422 | [Questions and answers](#questions-and-answers) |
 | Answer | 64 000 bytes | fixed | cut | [Questions and answers](#questions-and-answers) |
 | Answers in preparation | one per account | fixed | 409 | [Questions and answers](#questions-and-answers) |
+| Temporary download | 30 min, removed every 5 min, 20 per account, 16 MiB | `assistant.download_ttl`, `assistant.download_sweep`, or their environment variables; 20 and 16 MiB fixed | 410, then removed; the oldest removed | [Temporary downloads](#temporary-downloads) |
 | Subscriptions, shares | 20 per account, 50 per subscription | fixed | 422 | [Subscriptions](#subscriptions) |
 | API key | 512 characters | fixed | 422 | [Subscriptions](#subscriptions) |
 | AI providers | 20, 30 models each | fixed | the database is refused at load | [Validation at load](#validation-at-load) |
@@ -3344,6 +3391,7 @@ These are choices of the application. Each one gives the way to reach the expect
 | Events: logins, failed and throttled logins with their address key, account events with the administrator, configuration changes, saves, validations, reopenings, changes of adjustments, settings and names, with their login | logs | the operator | same | outside the application |
 | Subscriptions: name, provider, model, sealed API key, shares | database; the key file next to it | the owner, without the key; the accounts it is shared with, without the key; the operator, who can open the keys with the key file | the subscription or the account is deleted | the owner deletes the subscription; deletion of the account |
 | Conversations: questions, answers, pending actions | database | the person; the operator | the oldest beyond `assistant.conversations` and `assistant.exchanges` are dropped; the account is deleted | deletion of one or every conversation; deletion of the data; deletion of the account |
+| Temporary downloads: the export of the account, with the comments of its days | directory `<name>.downloads` | the person, through its link; the operator | `assistant.download_ttl`, 30 minutes by default, then the job removes it | expiry; deletion of the data; deletion of the account |
 | Questions, the context of the account and the data read by the tools: days, comments, balances, adjustments | the AI provider of the subscription | the provider, under its own terms | as the provider keeps them | outside the application |
 | Backups of the database | wherever the operator keeps them | whoever holds them | as long as they are kept | outside the application |
 | Import files and the spreadsheets they come from | outside the application | whoever holds them | as long as they are kept | outside the application |

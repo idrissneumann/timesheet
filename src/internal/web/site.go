@@ -21,6 +21,7 @@ import (
     "net/http"
 
     "timesheet/internal/account"
+    "timesheet/internal/assistant"
 )
 
 // ---------------------------------------------------------------------------
@@ -32,6 +33,7 @@ type Site struct {
     router   *Router
     sessions *Sessions
     runner   *AssistantRunner
+    sweeper  *DownloadSweeper
 }
 
 type notFoundHandler struct {
@@ -72,10 +74,11 @@ func NewSite(deps SiteDependencies) (*Site, error) {
     if client == nil {
         client = &http.Client{Timeout: deps.Server.Assistant.Timeout.Std()}
     }
-    runner := NewAssistantRunner(deps.Repository, loader, client, deps.Server.Assistant, planner, deps.Clock, deps.Logger)
-    chat := NewAssistantController(loader, deps.Repository, renderer, errors, runner, planner, deps.Server.Assistant, deps.Clock, deps.Random, deps.Logger)
-    data := NewDataController(loader, deps.Repository, renderer, errors, deps.Clock, deps.Random, deps.Logger)
-    admin := NewAdminController(deps.Repository, sessions, today, renderer, errors, deps.Clock, deps.Random, deps.Iterations, deps.Logger)
+    runner := NewAssistantRunner(deps.Repository, loader, client, deps.Server.Assistant, planner, deps.Downloads, deps.Clock, deps.Logger)
+    sweeper := NewDownloadSweeper(deps.Downloads, deps.Clock, deps.Server.Assistant, deps.Logger)
+    chat := NewAssistantController(loader, deps.Repository, renderer, errors, runner, planner, deps.Server.Assistant, deps.Clock, deps.Random, deps.Logger, deps.Downloads)
+    data := NewDataController(loader, deps.Repository, renderer, errors, deps.Clock, deps.Random, deps.Logger, deps.Downloads)
+    admin := NewAdminController(deps.Repository, sessions, today, renderer, errors, deps.Clock, deps.Random, deps.Iterations, deps.Logger, deps.Downloads)
     server := NewAdminServerController(deps.Server, deps.Version, renderer)
     configuration := NewAdminSettingsController(deps.Repository, renderer, errors, deps.Logger)
     user := account.ProfileUser
@@ -102,6 +105,7 @@ func NewSite(deps SiteDependencies) (*Site, error) {
     router.Handle(http.MethodGet, assistantPath, guard.Require(user, chat.Show))
     router.Handle(http.MethodPost, assistantPath, guard.Require(user, chat.Submit))
     router.Handle(http.MethodGet, assistantPath + "/{id}", guard.Require(user, chat.ShowConversation))
+    router.Handle(http.MethodGet, assistant.DownloadsPath + "{id}", guard.Require(user, chat.Download))
     router.Handle(http.MethodGet, dataPath, guard.Require(user, data.Show))
     router.Handle(http.MethodGet, dataExportPath, guard.Require(user, data.Export))
     router.Handle(http.MethodPost, dataImportPath, guard.Require(user, data.Import))
@@ -128,7 +132,8 @@ func NewSite(deps SiteDependencies) (*Site, error) {
     handler = NewRecoveryHandler(handler, errors, deps.Logger)
     handler = NewSecurityHeaders(handler, deps.Origins.Secure(), deps.Server.Server.HSTSMaxAge.Std())
     handler = NewAccessLog(handler, address, deps.Clock, deps.Logger)
-    return &Site{handler: handler, router: router, sessions: sessions, runner: runner}, nil
+    sweeper.Start()
+    return &Site{handler: handler, router: router, sessions: sessions, runner: runner, sweeper: sweeper}, nil
 }
 
 func (h *notFoundHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -145,6 +150,7 @@ func (s *Site) Flush() {
 
 func (s *Site) Stop() {
     s.runner.Stop()
+    s.sweeper.Stop()
 }
 
 func (s *Site) Routes() []Route {

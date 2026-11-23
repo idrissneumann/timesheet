@@ -44,7 +44,7 @@ An existing history, kept in a spreadsheet for instance, can be converted to a J
 - The activity codes and the counters are configurable. The calendar of public holidays and the rules are French: the application is not meant, as it stands, for another country.
 - The rules are choices of the application, simpler than common French practice: see [Simplifications](doc/SPECIFICATIONS.md#simplifications).
 - One static binary, no external service: it runs on a workstation or a small server.
-- An optional AI assistant answers questions on your own data, in French, with Markdown tables, through your own API key of Mistral, Anthropic, OpenAI or Google, which you can share with other accounts; the writes it proposes are applied only once you confirm them (see [Use the assistant](doc/USER-GUIDE.md#use-the-assistant)).
+- An optional AI assistant answers questions on your own data, in French, with Markdown tables, through your own API key of Mistral, Anthropic, OpenAI or Google, which you can share with other accounts; the writes it proposes are applied only once you confirm them, and it can give your export as a download link valid for 30 minutes (see [Use the assistant](doc/USER-GUIDE.md#use-the-assistant)).
 - Each user imports a file, exports their data in the same JSON format and erases them, from « Mes données ».
 - Although it supports several accounts, it is essentially meant for personal use.
 - The database is, for now, a single JSON file; SQLite and other databases are planned for the future.

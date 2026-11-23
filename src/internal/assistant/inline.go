@@ -22,9 +22,10 @@ package assistant
 // ---------------------------------------------------------------------------
 
 type Inline struct {
-    Kind string
-    Text string
-    Href string
+    Kind     string
+    Text     string
+    Href     string
+    Download bool
 }
 
 const (

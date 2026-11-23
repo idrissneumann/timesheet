@@ -154,6 +154,8 @@ func (c *ServerConfiguration) keys() []serverConfigurationKey {
         c.integer("assistant.conversations", &assistant.Conversations),
         c.integer("assistant.exchanges", &assistant.Exchanges),
         c.integer("assistant.question_bytes", &assistant.QuestionBytes),
+        c.duration("assistant.download_ttl", &assistant.DownloadTTL),
+        c.duration("assistant.download_sweep", &assistant.DownloadSweep),
     }
 }
 

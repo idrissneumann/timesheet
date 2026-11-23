@@ -75,7 +75,7 @@ share/timesheet/
   database-template.json          configuration template read by init
   database-example.json           anonymized example database, account demo
   import-template.json            fictitious example of an import file
-var/lib/timesheet/                database of the repository, given with --database, its lock, its key file and the session file
+var/lib/timesheet/                database of the repository, given with --database, its lock, its key file, its downloads and the session file
 debian/                           Debian packaging
 rpm/                              RPM packaging: timesheet.spec
 bin/                              timesheet (built), timesheet.sh (runs the server on the files of the repository)
@@ -299,6 +299,7 @@ It is shared by `app.ImportCommand` (database lock, options, English report) and
 | --- | --- | --- |
 | `SecureFile` | service | Private file with hardened reading, atomic writes and an exclusive lock |
 | `KeyRing` | service | The key file `<name>.key`: created once with 32 random bytes, it seals and opens the API keys with AES-256-GCM, bound to their owner and subscription |
+| `DownloadStore` | service | The directory `<name>.downloads`: the temporary downloads `<id>-<login>.json` written through a `SecureFile`, at most 20 per account, opened only for their login, removed once expired or with their account; implements `web.Downloads` |
 | `DatabaseRecord` | record | JSON schema of the file: version, revision, configuration, accounts |
 | `AccountRecord` | record | One account of the file: `account.Account` and `activity.Calendar` flattened, then its `assistant.State` |
 | `SessionFile` | service | Saved sessions; implements `web.SessionArchive` |
@@ -423,7 +424,10 @@ A write runs these steps under one `sync.RWMutex`:
 | Entity | Kind | Role |
 | --- | --- | --- |
 | `AssistantRunner` | service | Prepares one answer at a time per account in the background, with the agent, and stores it; stopped with the server |
-| `ToolBox` | service | The tools of one question, bound to the workspace of its account: the read tools and the `propose_` tools |
+| `ToolBox` | service | The tools of one question, bound to the workspace of its account: the read tools, the `propose_` tools and `export_data` |
+| `ToolExport` | service | The tool `export_data`: encodes the export of the account and saves it as a temporary download |
+| `Downloads` | interface | Port to the temporary downloads, implemented by `store.DownloadStore` |
+| `DownloadSweeper` | service | Removes the expired downloads at start and every `assistant.download_sweep`; stopped with the server |
 | `AssistantTool`, `ToolProposal` | service | Adapter from a method of `ToolBox` to `assistant.Tool`; the proposal of one write tool |
 | `ActionPlanner` | service | Checks a write proposed by the agent and builds the calendar it would save, at the proposal and again at the confirmation |
 | `ActionPlan` | record | Calendar, month, summary, notice and event of a planned write |
@@ -440,7 +444,7 @@ A write runs these steps under one `sync.RWMutex`:
 | `DashboardController` | `/dashboard/`, `/dashboard/activity…`, `/dashboard/month…`, `/dashboard/year/…`, `/dashboard/adjustments`, `/dashboard/colors.css`, and the read-only pages `/admin/accounts/{login}/dashboard`, `…/month/…`, `…/year/…` |
 | `SettingsController` | `/dashboard/settings` |
 | `ProfileController` | `/dashboard/profile` (name, password, sessions, and the subscriptions through `SubscriptionController`) |
-| `AssistantController` | `/dashboard/assistant`, `/dashboard/assistant/{id}` |
+| `AssistantController` | `/dashboard/assistant`, `/dashboard/assistant/{id}`, `/dashboard/assistant/downloads/{id}` |
 | `DataController` | `/dashboard/data` and its routes `/dashboard/data/export`, `/dashboard/data/import`, `/dashboard/data/reset` |
 | `AdminServerController` | `/admin/` |
 | `AdminController` | `/admin/accounts`, `/admin/accounts/{login}` |
@@ -455,6 +459,7 @@ A write runs these steps under one `sync.RWMutex`:
 | `Usage` | service | Text of `timesheet help` |
 | `UsageError` | value | Error of usage of the command line |
 | `Application` | service | Dispatch of the commands and lifecycle of `run` (see [Lifecycle](#lifecycle)) |
+| `EnvironmentOverrides` | service | Replaces `assistant.download_ttl` and `assistant.download_sweep` by `TIMESHEET_ASSISTANT_DOWNLOAD_TTL` and `TIMESHEET_ASSISTANT_DOWNLOAD_SWEEP` at the start of `run`, then validates |
 | `ServerFile` | service | Server configuration file: strict bounded reading, an error when it is missing (`ErrMissingServerFile`, which `config set` turns into the defaults), validation, atomic rewriting by `config set`, which follows a symbolic link and keeps the mode, the owner and the group of the file (`server_file_unix.go`) |
 | `InitCommand` | service | `init` |
 | `ConfigCommand` | service | `config show`, `config set` |
@@ -490,6 +495,7 @@ The routes and their answers are specified in [SPECIFICATIONS.md, Routes](SPECIF
 | Data page (« Données ») | `/dashboard/data`, `/dashboard/data/export`, `/dashboard/data/import`, `/dashboard/data/reset` | `DataController` | none (the controller builds its record) | `data.html` | `chrome_page.js` |
 | Assistant (« Assistant ») | `/dashboard/assistant` | `AssistantController` | none (the controller builds its record) | `assistant.html` | `chrome_page.js`, `assistant_page.js` |
 | Conversation | `/dashboard/assistant/{id}` | `AssistantController` | `assistant.Markdown` | `assistant_conversation.html` | `chrome_page.js`, `assistant_page.js` |
+| Temporary download | `/dashboard/assistant/downloads/{id}` | `AssistantController` | none | none (the export file, as an attachment) | none |
 | Colours of the codes | `/dashboard/colors.css` | `DashboardController` | none | none (generated style sheet) | none |
 | Server page (« Serveur ») | `/admin/` | `AdminServerController` | none (the controller builds its record from the version and the server configuration read at start) | `admin_server.html` | `chrome_page.js` |
 | Accounts (« Comptes ») | `/admin/accounts` | `AdminController` | none (the controller builds its records) | `admin_accounts.html` | `chrome_page.js` |
@@ -655,6 +661,7 @@ The file format, its mode, its directory rules, the atomic write, the lock and t
 - `store.Database` validates the whole file at load and refuses a newer schema version.
 - `store.SessionFile` writes the sessions through its own `SecureFile`.
 - `store.KeyRing` writes the key file once, through its own `SecureFile`.
+- `store.DownloadStore` writes each temporary download through its own `SecureFile`, in `<name>.downloads`.
 
 ## CONFIGURATION AND SERVER CONFIGURATION
 
@@ -693,16 +700,17 @@ Its settings are specified in [SPECIFICATIONS.md, Server configuration](SPECIFIC
 1. Parse the options (`Settings`).
 2. Create the logger.
 3. Read the server configuration file, resolve the database path, and create the logger again at `server.log_level` when `--log-level` is not given.
-4. Lock, then load the database.
-5. Warn when no enabled administrator account exists.
-6. Open the listener.
-7. Compute the accepted origins.
-8. Load the TLS pair of the options or of the file, when one is given, after the check that the origins are https.
-9. Open the session file: check its directory, remove the leftover temporary files.
-10. Build the site with `web.NewSite`, which restores the saved sessions.
-11. Build the `http.Server` with the timeouts and the header size of the section `server`.
-12. Serve until the signal context ends.
-13. Shut down gracefully, within `server.shutdown_timeout`, then cancel and wait for the answers of the assistant being prepared (`Site.Stop`), and save the sessions (`Site.Flush`).
+4. Replace the keys of the downloads by the environment variables (`EnvironmentOverrides`), and stop with exit 1 on an invalid value.
+5. Lock, then load the database.
+6. Warn when no enabled administrator account exists.
+7. Open the listener.
+8. Compute the accepted origins.
+9. Load the TLS pair of the options or of the file, when one is given, after the check that the origins are https.
+10. Open the session file: check its directory, remove the leftover temporary files.
+11. Build the site with `web.NewSite`, which restores the saved sessions and starts the cleanup of the temporary downloads (`DownloadSweeper`).
+12. Build the `http.Server` with the timeouts and the header size of the section `server`.
+13. Serve until the signal context ends.
+14. Shut down gracefully, within `server.shutdown_timeout`, then cancel and wait for the answers of the assistant being prepared and stop the cleanup of the downloads (`Site.Stop`), and save the sessions (`Site.Flush`).
 
 ### Other commands
 

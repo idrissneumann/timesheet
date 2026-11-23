@@ -198,6 +198,10 @@ func (a *Application) refuseRedirect(request *http.Request, via []*http.Request)
 
 func (a *Application) serve(ctx context.Context, settings *Settings, server activity.ServerConfiguration, logger *slog.Logger) int {
     logger.Info("starting", "version", NewBuildInfo().String())
+    server, err := NewEnvironmentOverrides(a.lookupEnv).Apply(server)
+    if err != nil {
+        return a.fail(logger, "invalid environment variable", err)
+    }
     config := server.Server
     database := store.NewDatabase(settings.Database(), logger, server.Database.MaxBytes, server.Limits)
     if err := database.Lock(); err != nil {
@@ -260,7 +264,7 @@ func (a *Application) serve(ctx context.Context, settings *Settings, server acti
         listener.Close()
         return a.fail(logger, "cannot prepare " + sessions.Path(), err)
     }
-    site, err := web.NewSite(web.SiteDependencies{Repository: database, Sessions: sessions, Clock: a.clock, Random: a.random, Logger: logger, Origins: origins, Server: server, TrustedProxies: trusted, LocalPrefixes: prefixes, Iterations: a.passwordIterations(server), Version: NewBuildInfo().Version(), Client: a.providerClient(server.Assistant)})
+    site, err := web.NewSite(web.SiteDependencies{Repository: database, Sessions: sessions, Clock: a.clock, Random: a.random, Logger: logger, Origins: origins, Server: server, TrustedProxies: trusted, LocalPrefixes: prefixes, Iterations: a.passwordIterations(server), Version: NewBuildInfo().Version(), Client: a.providerClient(server.Assistant), Downloads: store.NewDownloadStore(settings.Database() + activity.DownloadsSuffix, logger)})
     if err != nil {
         listener.Close()
         return a.fail(logger, "cannot build the site", err)

@@ -80,6 +80,7 @@ Each defence is one line here; the linked section gives the detail.
 | Database | Concurrent writers | One exclusive lock; optimistic revisions between browsers. | [Data integrity](#data-integrity) |
 | Logs | Leaking secrets | No password, typed login, session identifier, CSRF token, query string or body. | [Logs](#logs) |
 | Network traffic | Eavesdropping, cookie theft | TLS on a network, `Secure` cookies and HSTS with https origins. | [Transport](#transport) |
+| Temporary downloads | Read by another account or from a leaked link | The link works only for the session of its account, for 30 minutes by default; files 0600 in a directory 0700. | [AI assistant](#ai-assistant) |
 | API keys | Read from the database, a backup or a page | Sealed with AES-256-GCM by a key file kept apart, never shown again, never logged, never given to a shared user. | [AI assistant](#ai-assistant) |
 | Host | Server-side request forgery through the assistant | Calls only to the https addresses of the providers of the configuration, without redirection. | [AI assistant](#ai-assistant) |
 | Activity of a user | Changed by the model, or through a prompt injected in the data | The tools act on the account of the question only; a write is a proposal, applied only when the user confirms it, after the checks of the pages. | [AI assistant](#ai-assistant) |
@@ -618,6 +619,13 @@ Both options give:
 - Redirections are not followed, the answer is read up to 4 MiB, and each call lasts `assistant.timeout` at most.
 - The proxy of the environment (`HTTPS_PROXY`, `NO_PROXY`) applies.
 - The content security policy of the pages is unchanged: the browser never calls a provider.
+
+### Temporary downloads
+
+- The tool `export_data` keeps the export of the account in `<database>.downloads/`, mode 0700, one file of mode 0600 per download, for `assistant.download_ttl` (30 minutes by default).
+- The link holds 128 random bits, but it is no public capability: it works only through a session of the account that asked for it, whose login is part of the name of the file; any other request gets 404, as for an unknown link.
+- An expired file is removed at its next read and by the job that runs every `assistant.download_sweep`; « Supprimer mes données » and the deletion of the account remove the files of the account at once.
+- These files hold the comments of the days, those of absences included, until they expire: they are not encrypted, like the database.
 
 ### Tools and confirmation
 

@@ -18,13 +18,17 @@
 package web
 
 import (
+    "log/slog"
     "net/http"
     "net/url"
+    "path/filepath"
+    "regexp"
     "strings"
     "testing"
     "time"
 
     "timesheet/internal/activity"
+    "timesheet/internal/store"
 )
 
 // ---------------------------------------------------------------------------
@@ -132,6 +136,71 @@ func TestAssistantReportsAProviderFailure(t *testing.T) {
     status, location, _ := demo.post("/dashboard/assistant", url.Values{"csrf": {demo.token(demo.page(path))}, "action": {"delete-all"}})
     if (status != http.StatusSeeOther) || (location != "/dashboard/assistant") || !strings.Contains(demo.page("/dashboard/assistant"), "Aucune conversation.") {
         t.Fatalf("delete all: %d %s", status, location)
+    }
+}
+
+func TestAssistantGivesATemporaryExportToItsAccountOnly(t *testing.T) {
+    site, provider := newAssistantSite(t,
+        openAICall("export_data", `{}`),
+        openAIText("Voici votre export."),
+    )
+    demo := site.client().login("demo")
+    demo.subscribe("mistral|mistral-small-latest", "mistral-key")
+    path := demo.ask("", "Exporte mes données")
+    if journal := site.logs.waitFor("assistant answered"); !strings.Contains(journal, `msg="data exported" login=demo by=assistant`) {
+        t.Fatalf("got %s", journal)
+    }
+    requests := provider.seen()
+    link := regexp.MustCompile(`/dashboard/assistant/downloads/[0-9a-f]{32}`).FindString(requests[len(requests) - 1])
+    if link == "" {
+        t.Fatalf("the tool gives the link to the model: %v", requests)
+    }
+    status, headers, body := demo.download(link)
+    if (status != http.StatusOK) || !strings.HasPrefix(headers.Get("Content-Disposition"), `attachment; filename="timesheet-demo-2026-11-08.json"`) || (headers.Get("Cache-Control") != "no-store") || !strings.Contains(body, `"days"`) {
+        t.Fatalf("got %d %v %s", status, headers, body)
+    }
+    root := site.client().login("root")
+    if status, _, _ := root.get(link); status != http.StatusNotFound {
+        t.Fatalf("a download belongs to its account: %d", status)
+    }
+    site.clock.Advance(31 * time.Minute)
+    if status, _, page := demo.get(link); (status != http.StatusGone) || !strings.Contains(page, "Lien expiré") {
+        t.Fatalf("got %d", status)
+    }
+    if status, _, _ := demo.get(link); status != http.StatusNotFound {
+        t.Fatalf("an expired download is removed: %d", status)
+    }
+    if !strings.Contains(demo.page(path), "Voici votre export.") {
+        t.Fatal("the answer is shown")
+    }
+}
+
+func TestAnswersLinkOnlyToTheDownloadsOfTheAssistant(t *testing.T) {
+    site, _ := newAssistantSite(t, openAIText("[export](/dashboard/assistant/downloads/0123456789abcdef0123456789abcdef) et [ailleurs](/admin/accounts)"))
+    demo := site.client().login("demo")
+    demo.subscribe("mistral|mistral-small-latest", "mistral-key")
+    path := demo.ask("", "Un lien ?")
+    site.logs.waitFor("assistant answered")
+    page := demo.page(path)
+    if !strings.Contains(page, `<a href="/dashboard/assistant/downloads/0123456789abcdef0123456789abcdef" download>export</a>`) || strings.Contains(page, `href="/admin/accounts"`) {
+        t.Fatalf("got\n%s", page)
+    }
+}
+
+func TestDownloadSweeperRemovesTheExpiredExports(t *testing.T) {
+    site := newTestSite(t)
+    downloads := store.NewDownloadStore(filepath.Join(t.TempDir(), "ts.json.downloads"), slog.New(slog.NewTextHandler(site.logs, nil)))
+    clock := activity.NewManualClock(time.Now())
+    if _, err := downloads.Save("demo", []byte("{}"), clock.Now()); err != nil {
+        t.Fatal(err)
+    }
+    sweeper := NewDownloadSweeper(downloads, clock, activity.NewDefaultAssistantSettings(), slog.New(slog.NewTextHandler(site.logs, nil)))
+    if sweeper.Sweep() != 0 {
+        t.Fatal("a fresh export is kept")
+    }
+    clock.Advance(31 * time.Minute)
+    if (sweeper.Sweep() != 1) || !strings.Contains(site.logs.String(), `msg="downloads removed" count=1`) {
+        t.Fatalf("got %s", site.logs.String())
     }
 }
 
