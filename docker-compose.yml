@@ -26,9 +26,8 @@ services:
         container_name: timesheet
         ports:
             - "127.0.0.1:8080:8080"
-        environment:
-            - TIMESHEET_USERNAME
-            - TIMESHEET_PASSWORD
+        env_file:
+            - .env.docker.local
         volumes:
             - timesheet-data:/var/lib/timesheet
             - timesheet-config:/etc/timesheet

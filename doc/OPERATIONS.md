@@ -534,7 +534,7 @@ docker compose up -d --build
 ```
 
 - `up --build` builds the image, as `make docker` does, then creates and starts the container; the first start creates the database and its administrator ([First start](#first-start)). Then open `http://localhost:8080`.
-- `TIMESHEET_USERNAME` and `TIMESHEET_PASSWORD` are passed to the container when they are set in the shell, for instance `TIMESHEET_PASSWORD='<password>' docker compose up -d --build`; otherwise the defaults of [First start](#first-start) apply. As with `-e`, a given password stays readable with `docker inspect`: after the first login, recreate the container without it, `docker compose up -d --force-recreate`.
+- `TIMESHEET_USERNAME` and `TIMESHEET_PASSWORD` come from `.env.docker.local`, at the root of the repository: `admin` and `changeit-changeit`. Log in with them, then choose a new password in « Mon profil », as at any first start. To choose others, edit the file before the first start: the password follows the policy of [First start](#first-start), or the container stops with exit 1. Once the database exists, the file is no longer read, but its password stays readable with `docker inspect`, as with `-e`.
 - `docker compose logs` shows the log, `docker compose stop` and `docker compose start` stop and start the container again, `docker compose down` removes the container and keeps the volumes.
 - `docker compose down -v` removes the volumes too, which erases the database, the sessions and the server configuration for good ([Remove the volumes of the container](#remove-the-volumes-of-the-container)).
 - A container created by `docker run` under the name `timesheet` must be removed first ([Remove the container](#remove-the-container)): Compose then finds the database of its volumes again.
