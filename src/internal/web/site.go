@@ -68,7 +68,8 @@ func NewSite(deps SiteDependencies) (*Site, error) {
     home := NewHomeController(guard, renderer)
     dashboard := NewDashboardController(loader, deps.Repository, renderer, errors, deps.Clock, deps.Random, deps.Logger)
     settings := NewSettingsController(loader, deps.Repository, renderer, errors, deps.Logger)
-    profile := NewProfileController(throttle, address, loader, deps.Repository, sessions, renderer, errors, deps.Random, deps.Iterations, deps.Logger, NewSubscriptionController(deps.Repository, deps.Clock, deps.Random, deps.Logger))
+    profile := NewProfileController(throttle, address, loader, deps.Repository, sessions, renderer, errors, deps.Random, deps.Iterations, deps.Logger)
+    subscriptions := NewSubscriptionController(loader, deps.Repository, renderer, errors, deps.Clock, deps.Random, deps.Logger)
     planner := NewActionPlanner(deps.Clock, deps.Random)
     client := deps.Client
     if client == nil {
@@ -102,6 +103,9 @@ func NewSite(deps SiteDependencies) (*Site, error) {
     router.Handle(http.MethodPost, "/dashboard/adjustments", guard.Require(user, dashboard.Adjust))
     router.Handle(http.MethodGet, "/dashboard/profile", guard.Require(user, profile.Show))
     router.Handle(http.MethodPost, "/dashboard/profile", guard.Require(user, profile.Submit))
+    router.Handle(http.MethodGet, subscriptionsPath, guard.Require(user, subscriptions.Show))
+    router.Handle(http.MethodPost, subscriptionsPath, guard.Require(user, subscriptions.Submit))
+    router.Handle(http.MethodGet, subscriptionsPath + "/logins", guard.Require(user, subscriptions.Logins))
     router.Handle(http.MethodGet, assistantPath, guard.Require(user, chat.Show))
     router.Handle(http.MethodPost, assistantPath, guard.Require(user, chat.Submit))
     router.Handle(http.MethodGet, assistantPath + "/{id}", guard.Require(user, chat.ShowConversation))

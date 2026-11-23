@@ -164,9 +164,9 @@ func openAICall(name string, arguments string) string {
 
 func (c *testClient) subscribe(model string, key string) {
     c.site.t.Helper()
-    body := c.page("/dashboard/profile")
-    status, location, page := c.post("/dashboard/profile", url.Values{"csrf": {c.token(body)}, "action": {"subscription-add"}, "model": {model}, "key": {key}, "name": {""}})
-    if (status != http.StatusSeeOther) || (location != "/dashboard/profile") {
+    body := c.page("/dashboard/subscriptions")
+    status, location, page := c.post("/dashboard/subscriptions", url.Values{"csrf": {c.token(body)}, "action": {"subscription-add"}, "model": {model}, "key": {key}, "name": {""}})
+    if (status != http.StatusSeeOther) || (location != "/dashboard/subscriptions") {
         c.site.t.Fatalf("subscribe: %d %s %s", status, location, page)
     }
 }

@@ -446,7 +446,8 @@ A write runs these steps under one `sync.RWMutex`:
 | `LoginController` | `/login`, `/logout` |
 | `DashboardController` | `/dashboard/`, `/dashboard/activity…`, `/dashboard/month…`, `/dashboard/year/…`, `/dashboard/adjustments`, `/dashboard/colors.css`, and the read-only pages `/admin/accounts/{login}/dashboard`, `…/month/…`, `…/year/…` |
 | `SettingsController` | `/dashboard/settings` |
-| `ProfileController` | `/dashboard/profile` (name, password, sessions, and the subscriptions through `SubscriptionController`) |
+| `ProfileController` | `/dashboard/profile` (name, password, sessions) |
+| `SubscriptionController` | `/dashboard/subscriptions` and its suggestions of logins `/dashboard/subscriptions/logins` |
 | `AssistantController` | `/dashboard/assistant`, `/dashboard/assistant/{id}`, `/dashboard/assistant/downloads/{id}` |
 | `DataController` | `/dashboard/data` and its routes `/dashboard/data/export`, `/dashboard/data/import`, `/dashboard/data/reset` |
 | `AdminServerController` | `/admin/` |
@@ -495,6 +496,7 @@ The routes and their answers are specified in [SPECIFICATIONS.md, Routes](SPECIF
 | Year page (« Année ») | `/dashboard/year/{year}` | `DashboardController` | `YearView` | `year.html` | `chrome_page.js` |
 | Settings page (« Réglages ») | `/dashboard/settings` | `SettingsController` | none (the controller builds its record) | `settings.html` | `chrome_page.js` |
 | Profile page (« Mon profil ») | `/dashboard/profile` | `ProfileController` | none (the controller builds its record) | `profile.html` | `chrome_page.js` |
+| Subscriptions page (« Mes souscriptions ») | `/dashboard/subscriptions`, and the JSON of `/dashboard/subscriptions/logins` | `SubscriptionController` | none (the controller builds its record) | `subscriptions.html` | `chrome_page.js`, `subscriptions_page.js` |
 | Data page (« Données ») | `/dashboard/data`, `/dashboard/data/export`, `/dashboard/data/import`, `/dashboard/data/reset` | `DataController` | none (the controller builds its record) | `data.html` | `chrome_page.js` |
 | Assistant (« Assistant ») | `/dashboard/assistant` | `AssistantController` | none (the controller builds its record) | `assistant.html` | `chrome_page.js`, `assistant_page.js` |
 | Conversation | `/dashboard/assistant/{id}` | `AssistantController` | `assistant.Markdown` | `assistant_conversation.html` | `chrome_page.js`, `assistant_page.js` |
@@ -523,12 +525,13 @@ The rules for writing templates, scripts and style sheets are in [CODING.md, Tem
 
 ### Scripts
 
-Three ES modules are loaded with `<script type="module">`:
+Four ES modules are loaded with `<script type="module">`:
 
 | Script | Class | Loaded on | Behaviour |
 | --- | --- | --- | --- |
 | `chrome_page.js` | `ChromePage` | Every page | Shows the theme button; applies and switches the light or dark theme, kept in `localStorage` only; closes the burger menu, the user menu and the deletion box of `/admin/accounts` on a click outside or on `Échap`; gives the focus to the confirmation field of that box |
 | `assistant_page.js` | `AssistantPage` | Assistant and conversation pages | Sends the question on Enter, adds a line on Shift and Enter, disables the button once sent, scrolls to the last exchange |
+| `subscriptions_page.js` | `SubscriptionsPage` | Subscriptions page | Suggests, 300 ms after the last key from 2 characters, the logins of `/dashboard/subscriptions/logins` below the field of a share, as buttons built with the DOM API; arrows move between them, Escape closes them; uses `fetch`, allowed by `connect-src 'self'` |
 | `month_sheet_page.js` | `MonthSheetPage` | Activity page (editable grid) | Reads the code-to-class table of the `<script type="application/json">` block; copies the « Journée » choice into the selects of the half-days; empties « Journée » when a half-day is changed by hand; repaints the cells |
 
 ### Style sheets

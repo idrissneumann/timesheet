@@ -201,7 +201,7 @@ func (r *AssistantRunner) failure(err error) string {
     refused := &assistant.ProviderError{}
     switch {
         case errors.As(err, &refused) && ((refused.Status == http.StatusUnauthorized) || (refused.Status == http.StatusForbidden)):
-            return "Le fournisseur a refusé la clef d'API (statut " + strconv.Itoa(refused.Status) + ") : vérifiez la souscription dans « Mon profil »."
+            return "Le fournisseur a refusé la clef d'API (statut " + strconv.Itoa(refused.Status) + ") : vérifiez la souscription dans « Mes souscriptions »."
         case errors.As(err, &refused) && (refused.Status == http.StatusTooManyRequests):
             return "Le quota ou le débit autorisé par le fournisseur est dépassé (statut 429) : réessayez plus tard."
         case errors.As(err, &refused):

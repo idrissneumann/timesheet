@@ -39,7 +39,7 @@ func TestAssistantWithoutSubscriptionPointsToTheProfile(t *testing.T) {
     site := newTestSite(t)
     demo := site.client().login("demo")
     status, _, body := demo.get("/dashboard/assistant")
-    if (status != http.StatusOK) || !strings.Contains(body, "ajoutez-en une dans « Mon profil »") || strings.Contains(body, `name="question"`) {
+    if (status != http.StatusOK) || !strings.Contains(body, "ajoutez-en une dans « Mes souscriptions »") || strings.Contains(body, `name="question"`) {
         t.Fatalf("got %d", status)
     }
 }
