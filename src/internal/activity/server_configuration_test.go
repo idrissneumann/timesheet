@@ -67,6 +67,12 @@ func TestServerConfigurationValidationNamesTheField(t *testing.T) {
         "limits.accounts":                func(c *ServerConfiguration) { c.Limits.Accounts = 0 },
         "limits.account_bytes":           func(c *ServerConfiguration) { c.Limits.AccountBytes = 1 << 30 },
         "limits.adjustments":             func(c *ServerConfiguration) { c.Limits.Adjustments = 0 },
+        "assistant.timeout":              func(c *ServerConfiguration) { c.Assistant.Timeout = Duration(time.Second) },
+        "assistant.max_rounds":           func(c *ServerConfiguration) { c.Assistant.MaxRounds = 0 },
+        "assistant.max_tokens":           func(c *ServerConfiguration) { c.Assistant.MaxTokens = 100 },
+        "assistant.conversations":        func(c *ServerConfiguration) { c.Assistant.Conversations = 0 },
+        "assistant.exchanges":            func(c *ServerConfiguration) { c.Assistant.Exchanges = 1000 },
+        "assistant.question_bytes":       func(c *ServerConfiguration) { c.Assistant.QuestionBytes = 10 },
     }
     for path, mutate := range cases {
         configuration := testServerConfiguration().Clone()
@@ -85,7 +91,7 @@ func TestServerConfigurationValidationNamesTheField(t *testing.T) {
 
 func TestServerConfigurationKeysReadAndWriteTheirValue(t *testing.T) {
     configuration := testServerConfiguration().Clone()
-    if keys := configuration.Keys(); (len(keys) != 34) || (keys[0] != "server.listen") || (keys[len(keys) - 1] != "limits.adjustments") {
+    if keys := configuration.Keys(); (len(keys) != 40) || (keys[0] != "server.listen") || (keys[len(keys) - 1] != "assistant.question_bytes") {
         t.Fatalf("got %v", keys)
     }
     values := map[string]string{"server.origins": "http://a.test:8080, http://b.test:8080", "server.tls_cert": "cert.pem", "sessions.idle_timeout": "1h30m", "limits.accounts": "300"}

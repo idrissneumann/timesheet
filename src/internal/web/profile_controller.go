@@ -45,6 +45,7 @@ type ProfileController struct {
     random     io.Reader
     iterations int
     logger     *slog.Logger
+    assistant  *SubscriptionController
 }
 
 type profileRecord struct {
@@ -57,14 +58,15 @@ type profileRecord struct {
     LastLoginDate string
     Sessions      int
     MustChange    bool
+    Assistant     subscriptionsRecord
 }
 
 // ---------------------------------------------------------------------------
 // ProfileController implementation
 // ---------------------------------------------------------------------------
 
-func NewProfileController(throttle *LoginThrottle, address *ClientAddress, loader *WorkspaceLoader, repository Repository, sessions *Sessions, renderer *Renderer, errors *ErrorPages, random io.Reader, iterations int, logger *slog.Logger) *ProfileController {
-    return &ProfileController{throttle: throttle, address: address, loader: loader, repository: repository, sessions: sessions, renderer: renderer, errors: errors, notices: NewNotices(), random: random, iterations: iterations, logger: logger}
+func NewProfileController(throttle *LoginThrottle, address *ClientAddress, loader *WorkspaceLoader, repository Repository, sessions *Sessions, renderer *Renderer, errors *ErrorPages, random io.Reader, iterations int, logger *slog.Logger, subscriptions *SubscriptionController) *ProfileController {
+    return &ProfileController{throttle: throttle, address: address, loader: loader, repository: repository, sessions: sessions, renderer: renderer, errors: errors, notices: NewNotices(), random: random, iterations: iterations, logger: logger, assistant: subscriptions}
 }
 
 func (c *ProfileController) Show(w http.ResponseWriter, r *http.Request) {
@@ -83,7 +85,7 @@ func (c *ProfileController) render(w http.ResponseWriter, r *http.Request, ws *W
 func (c *ProfileController) page(w http.ResponseWriter, r *http.Request, ws *Workspace, status int, model PageModel) {
     owner := ws.Owner
     created := activity.NewDateOf(owner.Created.In(ws.Location))
-    record := profileRecord{Login: string(owner.Login), Name: owner.Name, Profile: owner.Profile.Label(), Created: created.Numeric(), CreatedDate: created.String(), LastLogin: "jamais", Sessions: c.sessions.Count(owner.Login), MustChange: owner.MustChangePassword}
+    record := profileRecord{Login: string(owner.Login), Name: owner.Name, Profile: owner.Profile.Label(), Created: created.Numeric(), CreatedDate: created.String(), LastLogin: "jamais", Sessions: c.sessions.Count(owner.Login), MustChange: owner.MustChangePassword, Assistant: c.assistant.Record(ws)}
     if !owner.LastLogin.IsZero() {
         last := activity.NewDateOf(owner.LastLogin.In(ws.Location))
         record.LastLogin, record.LastLoginDate = last.Numeric(), last.String()
@@ -110,7 +112,7 @@ func (c *ProfileController) Submit(w http.ResponseWriter, r *http.Request) {
             return
         case "password":
         default:
-            c.errors.BadRequest(w, r)
+            c.subscription(w, r, ws)
             return
     }
     current := r.PostFormValue("current")
@@ -166,6 +168,26 @@ func (c *ProfileController) Submit(w http.ResponseWriter, r *http.Request) {
     http.SetCookie(w, c.sessions.Cookie(SessionCookie, id, 0))
     c.sessions.SetNotice(c.sessions.Hash(id), "password")
     http.Redirect(w, r, profilePath, http.StatusSeeOther)
+}
+
+func (c *ProfileController) subscription(w http.ResponseWriter, r *http.Request, ws *Workspace) {
+    if !c.assistant.Handles(r.PostFormValue("action")) {
+        c.errors.BadRequest(w, r)
+        return
+    }
+    outcome := c.assistant.Submit(r, ws)
+    switch {
+        case outcome.Alert != "":
+            c.render(w, r, ws, outcome.Status, outcome.Alert)
+        case outcome.Status == http.StatusBadRequest:
+            c.errors.BadRequest(w, r)
+        case outcome.Status == http.StatusNotFound:
+            c.errors.NotFound(w, r)
+        case outcome.Status != 0:
+            c.errors.Status(w, r, outcome.Status)
+        default:
+            c.renderer.Redirect(w, r, profilePath, outcome.Notice)
+    }
 }
 
 func (c *ProfileController) closeSessions(w http.ResponseWriter, r *http.Request, ws *Workspace) {

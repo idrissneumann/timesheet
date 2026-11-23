@@ -69,4 +69,136 @@
                     </fieldset>
                 </form>
             </section>
+{{- with .Assistant}}
+            <section>
+                <h2>Assistant IA</h2>
+                <p>Une souscription est une clef d'API d'un fournisseur d'IA. Elle active l'assistant, qui lit vos données et vous propose des saisies, que vous confirmez ou annulez. La clef est chiffrée et ne s'affiche plus jamais après son enregistrement.</p>
+{{- if .Own}}
+                <table class="subscriptions">
+                    <caption>Mes souscriptions : la première est utilisée par défaut</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Nom</th>
+                            <th scope="col">Fournisseur</th>
+                            <th scope="col">Modèle</th>
+                            <th scope="col">Partagée avec</th>
+                            <th scope="col">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+{{- range .Own}}
+                        <tr>
+                            <th scope="row">{{.Name}}{{if .Default}} <small>par défaut</small>{{end}}</th>
+                            <td>{{.Provider}}</td>
+                            <td><code>{{.Model}}</code></td>
+                            <td>{{if .Shared}}{{range $index, $login := .Shared}}{{if $index}}, {{end}}{{$login}}{{end}}{{else}}personne{{end}}</td>
+                            <td>
+                                <details class="subscription-edit">
+                                    <summary>Gérer</summary>
+                                    <form method="post" action="/dashboard/profile">
+                                        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                                        <input type="hidden" name="action" value="subscription-edit">
+                                        <input type="hidden" name="id" value="{{.ID}}">
+                                        <fieldset>
+                                            <legend>Modifier « {{.Name}} »</legend>
+                                            <label class="field"><span class="field-name">Nom</span><input type="text" name="name" value="{{.Name}}" maxlength="60"></label>
+                                            <label class="field"><span class="field-name">Modèle</span>{{template "model-choices" .Groups}}</label>
+                                            <label class="field"><span class="field-name">Autre modèle</span><input type="text" name="custom_model" maxlength="100" autocapitalize="none" spellcheck="false"></label>
+                                            <label class="field"><span class="field-name">Nouvelle clef d'API</span><input type="password" name="key" autocomplete="off" maxlength="512"></label>
+                                            <p><small>Laissez la clef vide pour garder la clef enregistrée.</small></p>
+                                            <p class="actions"><button type="submit">Enregistrer</button></p>
+                                        </fieldset>
+                                    </form>
+                                    <form method="post" action="/dashboard/profile">
+                                        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                                        <input type="hidden" name="action" value="subscription-share">
+                                        <input type="hidden" name="id" value="{{.ID}}">
+                                        <fieldset>
+                                            <legend>Partager « {{.Name}} »</legend>
+                                            <label class="field"><span class="field-name">Identifiant du compte</span><input type="text" name="login" maxlength="32" autocapitalize="none" spellcheck="false" required></label>
+                                            <p><small>Le compte pourra utiliser la clef sans jamais la voir ; ses conversations restent les siennes.</small></p>
+                                            <p class="actions"><button type="submit">Partager</button></p>
+                                        </fieldset>
+                                    </form>
+{{- $id := .ID}}
+{{- range .Shared}}
+                                    <form method="post" action="/dashboard/profile">
+                                        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                                        <input type="hidden" name="action" value="subscription-unshare">
+                                        <input type="hidden" name="id" value="{{$id}}">
+                                        <input type="hidden" name="login" value="{{.}}">
+                                        <p class="actions"><button type="submit">Retirer le partage avec {{.}}</button></p>
+                                    </form>
+{{- end}}
+{{- if not .Default}}
+                                    <form method="post" action="/dashboard/profile">
+                                        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                                        <input type="hidden" name="action" value="subscription-default">
+                                        <input type="hidden" name="id" value="{{.ID}}">
+                                        <p class="actions"><button type="submit">Utiliser par défaut</button></p>
+                                    </form>
+{{- end}}
+                                    <form method="post" action="/dashboard/profile">
+                                        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                                        <input type="hidden" name="action" value="subscription-delete">
+                                        <input type="hidden" name="id" value="{{.ID}}">
+                                        <p class="actions"><button type="submit" class="danger">Supprimer la souscription</button></p>
+                                    </form>
+                                </details>
+                            </td>
+                        </tr>
+{{- end}}
+                    </tbody>
+                </table>
+{{- end}}
+{{- if .Shared}}
+                <table class="subscriptions">
+                    <caption>Souscriptions partagées avec moi</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Nom</th>
+                            <th scope="col">Partagée par</th>
+                            <th scope="col">Fournisseur</th>
+                            <th scope="col">Modèle</th>
+                            <th scope="col">Dans l'assistant</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+{{- range .Shared}}
+                        <tr>
+                            <th scope="row">{{.Label}}</th>
+                            <td>{{.Owner}}</td>
+                            <td>{{.Provider}}</td>
+                            <td><code>{{.Model}}</code></td>
+                            <td>
+                                <form method="post" action="/dashboard/profile">
+                                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                                    <input type="hidden" name="action" value="{{if .Hidden}}subscription-show{{else}}subscription-hide{{end}}">
+                                    <input type="hidden" name="id" value="{{.ID}}">
+                                    <button type="submit">{{if .Hidden}}Proposer de nouveau{{else}}Ne plus proposer{{end}}</button>
+                                </form>
+                            </td>
+                        </tr>
+{{- end}}
+                    </tbody>
+                </table>
+{{- end}}
+{{- if not .Full}}
+                <form method="post" action="/dashboard/profile">
+                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                    <input type="hidden" name="action" value="subscription-add">
+                    <fieldset>
+                        <legend>Ajouter une souscription</legend>
+                        <label class="field"><span class="field-name">Modèle</span>{{template "model-choices" .Groups}}</label>
+                        <label class="field"><span class="field-name">Autre modèle</span><input type="text" name="custom_model" maxlength="100" autocapitalize="none" spellcheck="false"></label>
+                        <label class="field"><span class="field-name">Clef d'API</span><input type="password" name="key" autocomplete="off" maxlength="512" required></label>
+                        <label class="field"><span class="field-name">Nom</span><input type="text" name="name" maxlength="60"></label>
+                        <p><small>« Autre modèle » remplace le modèle choisi, chez le même fournisseur. Sans nom, la souscription prend le nom du fournisseur et du modèle. Vos questions et les données lues par l'assistant sont envoyées au fournisseur choisi.</small></p>
+                        <p class="actions"><button type="submit">Ajouter la souscription</button></p>
+                    </fieldset>
+                </form>
+{{- end}}
+            </section>
+{{- end}}
 {{end}}{{end}}
+{{define "model-choices"}}<select name="model">{{range .}}<optgroup label="{{.Label}}">{{range .Options}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}</optgroup>{{end}}</select>{{end}}

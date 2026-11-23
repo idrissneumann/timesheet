@@ -23,6 +23,9 @@
         <meta name="color-scheme" content="light dark">
         <meta name="description" content="{{block "description" .}}Suivi de l'activité professionnelle à la demi-journée : saisie, compteurs et synthèse annuelle.{{end}}">
         <meta name="author" content="Olivier Poncet">
+{{- if .Refresh}}
+        <meta http-equiv="refresh" content="3">
+{{- end}}
         <link rel="icon" href="/static/img/icons/favicon.svg" type="image/svg+xml">
         <link rel="stylesheet" href="/static/css/theme.css">
         <link rel="stylesheet" href="/static/css/components.css">
