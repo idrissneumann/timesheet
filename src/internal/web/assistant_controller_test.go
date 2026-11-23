@@ -133,6 +133,22 @@ func TestAssistantReportsAProviderFailure(t *testing.T) {
     if page := demo.page(path); !strings.Contains(page, "Le fournisseur a refusé la requête (statut 503)") {
         t.Fatalf("got\n%s", page)
     }
+    list := demo.page("/dashboard/assistant")
+    id := strings.TrimPrefix(path, "/dashboard/assistant/")
+    if !strings.Contains(list, `<th scope="col">Actions</th>`) || !strings.Contains(list, `name="conversation" value="` + id + `"`) {
+        t.Fatalf("each conversation of the list has its delete button:\n%s", list)
+    }
+    second := demo.ask("", "Encore")
+    site.logs.waitFor("assistant failed")
+    if status, location, _ := demo.post("/dashboard/assistant", url.Values{"csrf": {demo.token(list)}, "action": {"delete"}, "conversation": {id}}); (status != http.StatusSeeOther) || (location != "/dashboard/assistant") {
+        t.Fatalf("delete one: %d %s", status, location)
+    }
+    if status, _, _ := demo.get(path); status != http.StatusNotFound {
+        t.Fatalf("the deleted conversation is gone: %d", status)
+    }
+    if status, _, _ := demo.get(second); status != http.StatusOK {
+        t.Fatalf("the other conversation stays: %d", status)
+    }
     status, location, _ := demo.post("/dashboard/assistant", url.Values{"csrf": {demo.token(demo.page(path))}, "action": {"delete-all"}})
     if (status != http.StatusSeeOther) || (location != "/dashboard/assistant") || !strings.Contains(demo.page("/dashboard/assistant"), "Aucune conversation.") {
         t.Fatalf("delete all: %d %s", status, location)

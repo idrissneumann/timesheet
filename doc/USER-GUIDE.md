@@ -250,7 +250,7 @@ The file is limited to 256 KiB by default; a larger file is imported by the oper
 2. Open « Assistant », type your question in « Question » and press Enter (Shift and Enter adds a line). The page reloads itself until the answer arrives.
 3. The assistant reads your days, balances, statements and summary to answer. When it proposes a change, such as half-days to enter, a month to validate or an adjustment, the section « Action à confirmer » lists what would be written: « Confirmer » writes it, « Annuler » drops it. Nothing is written before you confirm.
 4. Ask « Exporte mes données » to get the file of « Mes données » from the assistant: its answer gives a download link, which works only for you, for 30 minutes.
-5. « Poursuivre » asks another question in the same conversation; the list of « Assistant » gives your conversations, which you can delete one by one or all at once.
+5. « Poursuivre » asks another question in the same conversation; the list of « Assistant » gives your conversations, which you can delete one by one, with « Supprimer » in the column « Actions », or all at once.
 
 - To share a subscription, open « Gérer » on its row and start typing the login of another account in « Identifiant du compte »: from two letters, the logins that match appear below the field; pick one, then click « Partager ». That account uses your key without seeing it; its conversations stay its own. « Retirer le partage avec … » ends it.
 - A subscription shared with you appears in « Souscriptions partagées avec moi »; « Ne plus proposer » hides it from the assistant.

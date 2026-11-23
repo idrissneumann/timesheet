@@ -34,6 +34,7 @@
                         <tr>
                             <th scope="col">Conversation</th>
                             <th scope="col">Dernier échange</th>
+                            <th scope="col">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -41,6 +42,14 @@
                         <tr>
                             <th scope="row"><a href="{{.Path}}">{{.Title}}</a>{{if .Waiting}} <small>réponse en cours</small>{{end}}</th>
                             <td><time datetime="{{.UpdatedDate}}">{{.Updated}}</time></td>
+                            <td>
+                                <form method="post" action="/dashboard/assistant">
+                                    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="conversation" value="{{.ID}}">
+                                    <button type="submit" class="danger" aria-label="Supprimer la conversation « {{.Title}} »">Supprimer</button>
+                                </form>
+                            </td>
                         </tr>
 {{- end}}
                     </tbody>
